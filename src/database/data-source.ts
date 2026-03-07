@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { AuditLog } from 'src/audit/entities/audit-log.entity';
 import { Tenant } from 'src/tenant/entities/tenant.entity';
 import { User } from 'src/users/entities/user.entity';
+import { Service } from 'src/services/entity/service.entity';
 
 function envBool(name: string, defaultValue = false): boolean {
     const v = process.env[name];
@@ -35,7 +36,7 @@ export const AppDataSource = new DataSource({
 
     logging: envBool('DB_LOGGING', false),
 
-    entities: [User, Tenant, AuditLog],
+    entities: [User, Tenant, AuditLog, Service],
     migrations: ['src/database/migrations/*.ts'],
     synchronize: false,
 });

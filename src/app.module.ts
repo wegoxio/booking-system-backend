@@ -7,12 +7,15 @@ import { validateEnv } from './config/env.validation';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { makeTypeOrmConfig } from './database/typeorm.config';
 import { AuditModule } from './audit/audit.module';
+import { ServicesModule } from './services/services.module';
 
 @Module({
   imports: [
     AuthModule,
     TenantModule,
     UsersModule,
+    AuditModule,
+    ServicesModule,
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv
@@ -22,8 +25,6 @@ import { AuditModule } from './audit/audit.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => makeTypeOrmConfig(config),
     }),
-
-    AuditModule,
   ],
   controllers: [],
   providers: [],
