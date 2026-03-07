@@ -36,7 +36,7 @@ export class AuthService {
       const tenant = await this.tenantsRepo.findOne({ where: { id: user.tenant_id } });
       if (!tenant) throw new ForbiddenException('Tenant not found');
 
-      if (tenant.status !== 'ACTIVE') {
+      if (!tenant.is_active) {
         throw new ForbiddenException('Tenant disabled');
       }
     }

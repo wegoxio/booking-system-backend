@@ -19,12 +19,11 @@ import { JwtStrategy } from './strategies/jwt.strategy';
       inject: [ConfigService],
       useFactory: (config: ConfigService): JwtModuleOptions => {
         const secret = config.get<string>('JWT_SECRET');
-        const expires = config.get<string>('JWT_EXPIRES_IN');
 
         return {
           secret,
           signOptions: {
-            expiresIn: expires ? Number(expires) : undefined,
+            expiresIn: "1h"
           },
         };
       },

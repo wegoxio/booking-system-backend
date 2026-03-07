@@ -1,7 +1,6 @@
 import { BaseEntity } from 'src/common/entities/base.entity';
 import { Column, Entity, Index } from 'typeorm';
 
-export type TenantStatus = 'ACTIVE' | 'DISABLED';
 
 @Entity('tenants')
 export class Tenant extends BaseEntity {
@@ -14,8 +13,8 @@ export class Tenant extends BaseEntity {
   slug: string;
 
   @Column({
-    type: 'varchar',
-    default: 'ACTIVE'
+    type: 'boolean',
+    default: true
   })
-  status: TenantStatus;
+  is_active: boolean;
 }
