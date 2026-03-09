@@ -3,11 +3,14 @@ import {
   Entity,
   Index,
   JoinColumn,
+  JoinTable,
+  ManyToMany,
   ManyToOne,
   Unique,
 } from 'typeorm';
 import { BaseEntity } from 'src/common/entities/base.entity';
 import { Tenant } from 'src/tenant/entities/tenant.entity';
+import { Employee } from 'src/employees/entities/employee.entity';
 
 @Entity('services')
 @Unique('UQ_services_tenant_name', ['tenant_id', 'name'])
@@ -58,4 +61,12 @@ export class Service extends BaseEntity {
 
   @Column({ type: 'int', default: 60 })
   booking_window_days: number;
+
+  @ManyToMany(() => Employee, (employee) => employee.services, { eager: true })
+  @JoinTable({
+    name: 'service_employees',
+    joinColumn: { name: 'service_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'employee_id', referencedColumnName: 'id' },
+  })
+  employees: Employee[];
 }

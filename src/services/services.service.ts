@@ -5,13 +5,14 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { AuditService } from 'src/audit/audit.service';
 import { Service } from './entity/service.entity';
 import { ToggleServiceStatusDto } from './dto/toggle-service.dto';
+import { Employee } from 'src/employees/entities/employee.entity';
 
 type CurrentJwtUser = {
     sub: string;
@@ -24,6 +25,8 @@ export class ServicesService {
     constructor(
         @InjectRepository(Service)
         private readonly servicesRepository: Repository<Service>,
+        @InjectRepository(Employee)
+        private readonly employeesRepository: Repository<Employee>,
         private readonly auditService: AuditService,
     ) { }
 
@@ -45,6 +48,11 @@ export class ServicesService {
             throw new ConflictException('A service with this name already exists');
         }
 
+        const employees = await this.resolveTenantEmployees(
+            dto.employee_ids,
+            currentUser.tenant_id,
+        );
+
         const service = this.servicesRepository.create({
             tenant_id: currentUser.tenant_id,
             name: normalizedName,
@@ -60,6 +68,7 @@ export class ServicesService {
             requires_confirmation: dto.requires_confirmation ?? false,
             min_notice_minutes: dto.min_notice_minutes ?? 0,
             booking_window_days: dto.booking_window_days ?? 60,
+            employees,
         });
 
         const saved = await this.servicesRepository.save(service);
@@ -75,6 +84,7 @@ export class ServicesService {
                 duration_minutes: saved.duration_minutes,
                 price: saved.price,
                 currency: saved.currency,
+                employee_ids: saved.employees.map((employee) => employee.id),
             },
         });
 
@@ -88,6 +98,7 @@ export class ServicesService {
 
         return this.servicesRepository.find({
             where: { tenant_id: currentUser.tenant_id },
+            relations: { employees: true },
             order: {
                 sort_order: 'ASC',
                 created_at: 'DESC',
@@ -105,6 +116,7 @@ export class ServicesService {
                 id,
                 tenant_id: currentUser.tenant_id,
             },
+            relations: { employees: true },
         });
 
         if (!service) {
@@ -186,6 +198,13 @@ export class ServicesService {
             service.booking_window_days = dto.booking_window_days;
         }
 
+        if (dto.employee_ids !== undefined) {
+            service.employees = await this.resolveTenantEmployees(
+                dto.employee_ids,
+                currentUser.tenant_id!,
+            );
+        }
+
         const updated = await this.servicesRepository.save(service);
 
         await this.auditService.log({
@@ -226,5 +245,32 @@ export class ServicesService {
         });
 
         return updated;
+    }
+
+    private async resolveTenantEmployees(
+        employeeIds: string[],
+        tenantId: string,
+    ): Promise<Employee[]> {
+        const uniqueIds = Array.from(new Set(employeeIds));
+
+        if (uniqueIds.length === 0) {
+            throw new BadRequestException('At least one employee is required');
+        }
+
+        const employees = await this.employeesRepository.find({
+            where: {
+                tenant_id: tenantId,
+                id: In(uniqueIds),
+                is_active: true,
+            },
+        });
+
+        if (employees.length !== uniqueIds.length) {
+            throw new BadRequestException(
+                'Some employees are invalid, inactive, or not part of this tenant',
+            );
+        }
+
+        return employees;
     }
 }

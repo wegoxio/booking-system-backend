@@ -8,6 +8,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { makeTypeOrmConfig } from './database/typeorm.config';
 import { AuditModule } from './audit/audit.module';
 import { ServicesModule } from './services/services.module';
+import { EmployeesModule } from './employees/employees.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ServicesModule } from './services/services.module';
     UsersModule,
     AuditModule,
     ServicesModule,
+    EmployeesModule,
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv
