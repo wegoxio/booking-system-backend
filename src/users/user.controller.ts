@@ -1,27 +1,65 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { UserService } from './user.service';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { Roles } from 'src/common/decorators/roles.decorator';
-import { CreateUserDto } from './dto/create-user.dto';
+import { UserService } from './user.service';
+import { CreateTenantAdminDto } from './dto/create-tenant-admin.dto';
+import { UpdateTenantAdminDto } from './dto/update-tenant-admin.dto';
+
+type CurrentJwtUser = {
+  sub: string;
+  role: 'SUPER_ADMIN' | 'TENANT_ADMIN';
+  tenant_id: string | null;
+};
 
 @Controller('users')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('SUPER_ADMIN')
 export class UsersController {
-    constructor(
-        private usersService: UserService
-    ) { }
+  constructor(private readonly usersService: UserService) {}
 
+  @Get('tenant-admins')
+  findTenantAdmins() {
+    return this.usersService.findTenantAdmins();
+  }
 
-    @Get(':id')
-    @UseGuards(JwtAuthGuard)
-    @Roles('SUPER_ADMIN')
-    getUserByID(@Param('id') id: string) {
-        return this.usersService.findById(id);
-    }
+  @Get('tenant-admins/:id')
+  findTenantAdminById(@Param('id') id: string) {
+    return this.usersService.findTenantAdminById(id);
+  }
 
-    @Post()
-    @UseGuards(JwtAuthGuard)
-    @Roles('SUPER_ADMIN')
-    createUser(@Body() data: CreateUserDto){
-        return this.usersService.create(data);
-    }
+  @Post('tenant-admins')
+  createTenantAdmin(
+    @Body() data: CreateTenantAdminDto,
+    @CurrentUser() currentUser: CurrentJwtUser,
+  ) {
+    return this.usersService.createTenantAdmin(data, currentUser);
+  }
+
+  @Patch('tenant-admins/:id')
+  updateTenantAdmin(
+    @Param('id') id: string,
+    @Body() data: UpdateTenantAdminDto,
+    @CurrentUser() currentUser: CurrentJwtUser,
+  ) {
+    return this.usersService.updateTenantAdmin(id, data, currentUser);
+  }
+
+  @Delete('tenant-admins/:id')
+  removeTenantAdmin(
+    @Param('id') id: string,
+    @CurrentUser() currentUser: CurrentJwtUser,
+  ) {
+    return this.usersService.removeTenantAdmin(id, currentUser);
+  }
 }
