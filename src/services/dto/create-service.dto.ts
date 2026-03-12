@@ -1,4 +1,7 @@
 import {
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsInt,
   IsNotEmpty,
@@ -6,6 +9,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  IsUUID,
   Length,
   Max,
   Min,
@@ -73,4 +77,10 @@ export class CreateServiceDto {
   @Min(1)
   @Max(365)
   booking_window_days?: number = 60;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
+  employee_ids: string[];
 }

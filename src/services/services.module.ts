@@ -5,9 +5,10 @@ import { ServicesController } from './services.controller';
 import { ServicesService } from './services.service';
 import { Service } from './entity/service.entity';
 import { AuditModule } from 'src/audit/audit.module';
+import { Employee } from 'src/employees/entities/employee.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Service]), AuditModule],
+  imports: [TypeOrmModule.forFeature([Service, Employee]), AuditModule],
   controllers: [ServicesController],
   providers: [ServicesService],
   exports: [ServicesService],
