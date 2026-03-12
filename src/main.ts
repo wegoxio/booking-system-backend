@@ -7,7 +7,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
   app.enableCors({
     origin: 'http://localhost:3000', // Allow specific domain
-    methods: 'GET,POST,PUT,DELETE', // Allow HTTP methods
+    methods: 'GET,POST,PUT,DELETE, PATCH', // Allow HTTP methods
     credentials: true, // Allow cookies to be sent
     allowedHeaders: 'Content-Type, Authorization', // Permitted request headers
   })
