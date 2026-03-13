@@ -9,6 +9,7 @@ import { makeTypeOrmConfig } from './database/typeorm.config';
 import { AuditModule } from './audit/audit.module';
 import { ServicesModule } from './services/services.module';
 import { EmployeesModule } from './employees/employees.module';
+import { TenantSettingsModule } from './tenant-settings/tenant-settings.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { EmployeesModule } from './employees/employees.module';
     AuditModule,
     ServicesModule,
     EmployeesModule,
+    TenantSettingsModule,
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv
