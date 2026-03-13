@@ -13,12 +13,19 @@ import { PlatformSetting } from './entities/platform-setting.entity';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import {
   ALLOWED_IMAGE_MIME_TYPES,
-  DEFAULT_BRANDING_SETTINGS,
-  DEFAULT_THEME_SETTINGS,
   PLATFORM_SETTINGS_SCOPE,
   TenantSettingsAssetType,
 } from './tenant-settings.constants';
+import {
+  applyBrandingSettings,
+  applyDefaultSettings,
+  applyThemeSettings,
+  ensureSettingsDefaults,
+  serializeSettings,
+} from './tenant-settings.mapper';
+import { normalizeThemeSettings } from './tenant-theme.utils';
 import { S3StorageService } from './services/s3-storage.service';
+import { TenantSettingsResponse } from './tenant-settings.types';
 
 type UploadedAssetFile = {
   buffer: Buffer;
@@ -38,30 +45,29 @@ export class TenantSettingsService {
     private readonly s3StorageService: S3StorageService,
   ) {}
 
-  async findPlatform(): Promise<PlatformSetting> {
-    return this.getOrCreatePlatformSettings();
+  async findPlatform(): Promise<TenantSettingsResponse> {
+    const settings = await this.getOrCreatePlatformSettings();
+    return serializeSettings(settings);
   }
 
   async updatePlatform(
     dto: UpdateTenantSettingsDto,
     currentUser: CurrentJwtUser,
-  ): Promise<PlatformSetting> {
+  ): Promise<TenantSettingsResponse> {
     const settings = await this.getOrCreatePlatformSettings();
 
     if (dto.theme) {
-      settings.theme = {
-        ...DEFAULT_THEME_SETTINGS,
-        ...(settings.theme ?? {}),
-        ...dto.theme,
-      };
+      applyThemeSettings(
+        settings,
+        normalizeThemeSettings({
+          ...serializeSettings(settings).theme,
+          ...dto.theme,
+        }),
+      );
     }
 
     if (dto.branding) {
-      settings.branding = {
-        ...DEFAULT_BRANDING_SETTINGS,
-        ...(settings.branding ?? {}),
-        ...dto.branding,
-      };
+      applyBrandingSettings(settings, dto.branding);
     }
 
     const updated = await this.platformSettingsRepository.save(settings);
@@ -77,14 +83,14 @@ export class TenantSettingsService {
       },
     });
 
-    return updated;
+    return serializeSettings(updated);
   }
 
   async uploadPlatformAsset(
     assetType: TenantSettingsAssetType,
     file: UploadedAssetFile,
     currentUser: CurrentJwtUser,
-  ): Promise<PlatformSetting> {
+  ): Promise<TenantSettingsResponse> {
     if (!file?.buffer || !file.mimetype) {
       throw new BadRequestException('Image file is required');
     }
@@ -112,13 +118,12 @@ export class TenantSettingsService {
       contentType: file.mimetype,
     });
 
-    settings.branding = {
-      ...DEFAULT_BRANDING_SETTINGS,
-      ...(settings.branding ?? {}),
-      ...(assetType === TenantSettingsAssetType.LOGO
+    applyBrandingSettings(
+      settings,
+      assetType === TenantSettingsAssetType.LOGO
         ? { logoUrl: assetUrl }
-        : { faviconUrl: assetUrl }),
-    };
+        : { faviconUrl: assetUrl },
+    );
 
     if (assetType === TenantSettingsAssetType.LOGO) {
       settings.logo_key = objectKey;
@@ -140,25 +145,27 @@ export class TenantSettingsService {
       },
     });
 
-    return updated;
+    return serializeSettings(updated);
   }
 
-  async findMine(currentUser: CurrentJwtUser): Promise<TenantSetting> {
+  async findMine(currentUser: CurrentJwtUser): Promise<TenantSettingsResponse> {
     if (!currentUser.tenant_id) {
       throw new BadRequestException('Tenant context is required');
     }
 
-    return this.getOrCreateByTenantId(currentUser.tenant_id);
+    const settings = await this.getOrCreateByTenantId(currentUser.tenant_id);
+    return serializeSettings(settings);
   }
 
-  async findByTenantId(tenantId: string): Promise<TenantSetting> {
-    return this.getOrCreateByTenantId(tenantId);
+  async findByTenantId(tenantId: string): Promise<TenantSettingsResponse> {
+    const settings = await this.getOrCreateByTenantId(tenantId);
+    return serializeSettings(settings);
   }
 
   async updateMine(
     dto: UpdateTenantSettingsDto,
     currentUser: CurrentJwtUser,
-  ): Promise<TenantSetting> {
+  ): Promise<TenantSettingsResponse> {
     if (!currentUser.tenant_id) {
       throw new BadRequestException('Tenant context is required');
     }
@@ -170,23 +177,21 @@ export class TenantSettingsService {
     tenantId: string,
     dto: UpdateTenantSettingsDto,
     currentUser: CurrentJwtUser,
-  ): Promise<TenantSetting> {
+  ): Promise<TenantSettingsResponse> {
     const settings = await this.getOrCreateByTenantId(tenantId);
 
     if (dto.theme) {
-      settings.theme = {
-        ...DEFAULT_THEME_SETTINGS,
-        ...(settings.theme ?? {}),
-        ...dto.theme,
-      };
+      applyThemeSettings(
+        settings,
+        normalizeThemeSettings({
+          ...serializeSettings(settings).theme,
+          ...dto.theme,
+        }),
+      );
     }
 
     if (dto.branding) {
-      settings.branding = {
-        ...DEFAULT_BRANDING_SETTINGS,
-        ...(settings.branding ?? {}),
-        ...dto.branding,
-      };
+      applyBrandingSettings(settings, dto.branding);
     }
 
     const updated = await this.tenantSettingsRepository.save(settings);
@@ -202,14 +207,14 @@ export class TenantSettingsService {
       },
     });
 
-    return updated;
+    return serializeSettings(updated);
   }
 
   async uploadMineAsset(
     assetType: TenantSettingsAssetType,
     file: UploadedAssetFile,
     currentUser: CurrentJwtUser,
-  ): Promise<TenantSetting> {
+  ): Promise<TenantSettingsResponse> {
     if (!currentUser.tenant_id) {
       throw new BadRequestException('Tenant context is required');
     }
@@ -227,7 +232,7 @@ export class TenantSettingsService {
     assetType: TenantSettingsAssetType,
     file: UploadedAssetFile,
     currentUser: CurrentJwtUser,
-  ): Promise<TenantSetting> {
+  ): Promise<TenantSettingsResponse> {
     if (!file?.buffer || !file.mimetype) {
       throw new BadRequestException('Image file is required');
     }
@@ -255,13 +260,12 @@ export class TenantSettingsService {
       contentType: file.mimetype,
     });
 
-    settings.branding = {
-      ...DEFAULT_BRANDING_SETTINGS,
-      ...(settings.branding ?? {}),
-      ...(assetType === TenantSettingsAssetType.LOGO
+    applyBrandingSettings(
+      settings,
+      assetType === TenantSettingsAssetType.LOGO
         ? { logoUrl: assetUrl }
-        : { faviconUrl: assetUrl }),
-    };
+        : { faviconUrl: assetUrl },
+    );
 
     if (assetType === TenantSettingsAssetType.LOGO) {
       settings.logo_key = objectKey;
@@ -283,7 +287,7 @@ export class TenantSettingsService {
       },
     });
 
-    return updated;
+    return serializeSettings(updated);
   }
 
   private async getOrCreateByTenantId(tenantId: string): Promise<TenantSetting> {
@@ -294,33 +298,16 @@ export class TenantSettingsService {
     });
 
     if (existingSettings) {
-      if (!existingSettings.theme || Object.keys(existingSettings.theme).length === 0) {
-        existingSettings.theme = {
-          ...DEFAULT_THEME_SETTINGS,
-        };
-      }
-      if (
-        !existingSettings.branding ||
-        Object.keys(existingSettings.branding).length === 0
-      ) {
-        existingSettings.branding = {
-          ...DEFAULT_BRANDING_SETTINGS,
-        };
-      }
+      ensureSettingsDefaults(existingSettings);
       return existingSettings;
     }
 
     const settings = this.tenantSettingsRepository.create({
       tenant_id: tenantId,
-      theme: {
-        ...DEFAULT_THEME_SETTINGS,
-      },
-      branding: {
-        ...DEFAULT_BRANDING_SETTINGS,
-      },
       logo_key: null,
       favicon_key: null,
     });
+    applyDefaultSettings(settings);
 
     return this.tenantSettingsRepository.save(settings);
   }
@@ -331,33 +318,16 @@ export class TenantSettingsService {
     });
 
     if (existingSettings) {
-      if (!existingSettings.theme || Object.keys(existingSettings.theme).length === 0) {
-        existingSettings.theme = {
-          ...DEFAULT_THEME_SETTINGS,
-        };
-      }
-      if (
-        !existingSettings.branding ||
-        Object.keys(existingSettings.branding).length === 0
-      ) {
-        existingSettings.branding = {
-          ...DEFAULT_BRANDING_SETTINGS,
-        };
-      }
+      ensureSettingsDefaults(existingSettings);
       return existingSettings;
     }
 
     const settings = this.platformSettingsRepository.create({
       scope: PLATFORM_SETTINGS_SCOPE,
-      theme: {
-        ...DEFAULT_THEME_SETTINGS,
-      },
-      branding: {
-        ...DEFAULT_BRANDING_SETTINGS,
-      },
       logo_key: null,
       favicon_key: null,
     });
+    applyDefaultSettings(settings);
 
     return this.platformSettingsRepository.save(settings);
   }
