@@ -22,6 +22,15 @@ export const envSchema = z.object({
   ARGON2_MEMORY_COST: z.coerce.number().default(65536),
   ARGON2_TIME_COST: z.coerce.number().default(3),
   ARGON2_PARALLELISM: z.coerce.number().default(1),
+
+  // AWS S3 (tenant branding assets)
+  AWS_REGION: z.string().optional(),
+  AWS_S3_BUCKET: z.string().optional(),
+  AWS_S3_PUBLIC_BASE_URL: z.string().optional(),
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  AWS_SESSION_TOKEN: z.string().optional(),
+  AWS_S3_FORCE_PATH_STYLE: z.coerce.boolean().default(false),
 });
 
 export type EnvVars = z.infer<typeof envSchema>;

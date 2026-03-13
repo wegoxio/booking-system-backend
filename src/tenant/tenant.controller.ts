@@ -1,25 +1,62 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { TenantService } from './tenant.service';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { Roles } from 'src/common/decorators/roles.decorator';
+import { TenantService } from './tenant.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
+import { UpdateTenantDto } from './dto/update-tenant.dto';
+
+type CurrentJwtUser = {
+  sub: string;
+  role: 'SUPER_ADMIN' | 'TENANT_ADMIN';
+  tenant_id: string | null;
+};
 
 @Controller('tenant')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('SUPER_ADMIN')
 export class TenantController {
-    constructor(
-        private tenantService: TenantService
-    ) { }
+  constructor(private readonly tenantService: TenantService) {}
 
-    @Get()
-    @UseGuards(JwtAuthGuard)
-    @Roles('SUPER_ADMIN')
-    getTenants() {
-        return this.tenantService.findAll()
-    }
-    @Post()
-    @UseGuards(JwtAuthGuard)
-    @Roles('SUPER_ADMIN')
-    createTenant(@Body() data: CreateTenantDto) {
-        return this.tenantService.create(data)
-    }
+  @Get()
+  findAll() {
+    return this.tenantService.findAll();
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.tenantService.findOne(id);
+  }
+
+  @Post()
+  create(
+    @Body() data: CreateTenantDto,
+    @CurrentUser() currentUser: CurrentJwtUser,
+  ) {
+    return this.tenantService.create(data, currentUser);
+  }
+
+  @Patch(':id')
+  update(
+    @Param('id') id: string,
+    @Body() data: UpdateTenantDto,
+    @CurrentUser() currentUser: CurrentJwtUser,
+  ) {
+    return this.tenantService.update(id, data, currentUser);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string, @CurrentUser() currentUser: CurrentJwtUser) {
+    return this.tenantService.remove(id, currentUser);
+  }
 }
