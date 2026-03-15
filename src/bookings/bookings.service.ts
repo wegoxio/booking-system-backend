@@ -37,6 +37,11 @@ import {
 } from './bookings.constants';
 import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
+import {
+  PublicBookingConfirmation,
+  PublicBookingEmployee,
+  PublicBookingService,
+} from './bookings-public.types';
 
 type CurrentJwtUser = {
   sub: string;
@@ -74,7 +79,9 @@ export class BookingsService {
     return this.findEligibleEmployeesByTenantId(tenantId, query.service_ids);
   }
 
-  async listPublicServicesByTenantSlug(tenantSlug: string): Promise<Service[]> {
+  async listPublicServicesByTenantSlug(
+    tenantSlug: string,
+  ): Promise<PublicBookingService[]> {
     const tenant = await this.findActiveTenantBySlug(tenantSlug);
     const services = await this.servicesRepository.find({
       where: {
@@ -90,21 +97,41 @@ export class BookingsService {
       },
     });
 
-    for (const service of services) {
-      service.employees = service.employees.filter(
-        (employee) => employee.is_active && employee.tenant_id === tenant.id,
-      );
-    }
+    return services
+      .map((service) => {
+        const eligibleEmployees = service.employees
+          .filter((employee) => employee.is_active && employee.tenant_id === tenant.id)
+          .map((employee) => this.toPublicBookingEmployee(employee));
 
-    return services.filter((service) => service.employees.length > 0);
+        if (eligibleEmployees.length === 0) {
+          return null;
+        }
+
+        return {
+          id: service.id,
+          name: service.name,
+          description: service.description,
+          duration_minutes: service.duration_minutes,
+          price: Number(service.price).toFixed(2),
+          currency: service.currency,
+          is_active: service.is_active,
+          employees: eligibleEmployees,
+        };
+      })
+      .filter((service): service is PublicBookingService => service !== null);
   }
 
   async findPublicEligibleEmployeesByTenantSlug(
     tenantSlug: string,
     query: EligibleEmployeesQueryDto,
-  ): Promise<Employee[]> {
+  ): Promise<PublicBookingEmployee[]> {
     const tenant = await this.findActiveTenantBySlug(tenantSlug);
-    return this.findEligibleEmployeesByTenantId(tenant.id, query.service_ids);
+    const employees = await this.findEligibleEmployeesByTenantId(
+      tenant.id,
+      query.service_ids,
+    );
+
+    return employees.map((employee) => this.toPublicBookingEmployee(employee));
   }
 
   async setEmployeeSchedule(
@@ -389,9 +416,10 @@ export class BookingsService {
   async createPublicBookingByTenantSlug(
     tenantSlug: string,
     dto: CreateBookingDto,
-  ): Promise<Booking> {
+  ): Promise<PublicBookingConfirmation> {
     const tenant = await this.findActiveTenantBySlug(tenantSlug);
-    return this.createBookingForTenant(tenant.id, dto, null, 'WEB');
+    const booking = await this.createBookingForTenant(tenant.id, dto, null, 'WEB');
+    return this.toPublicBookingConfirmation(booking);
   }
 
   async createBooking(
@@ -1005,5 +1033,37 @@ export class BookingsService {
 
   private normalizeLocalTime(value: string): string {
     return value.trim().slice(0, 5);
+  }
+
+  private toPublicBookingEmployee(employee: Employee): PublicBookingEmployee {
+    return {
+      id: employee.id,
+      name: employee.name,
+    };
+  }
+
+  private toPublicBookingConfirmation(booking: Booking): PublicBookingConfirmation {
+    return {
+      id: booking.id,
+      status: booking.status,
+      start_at_utc: booking.start_at_utc.toISOString(),
+      end_at_utc: booking.end_at_utc.toISOString(),
+      total_duration_minutes: booking.total_duration_minutes,
+      total_price: Number(booking.total_price).toFixed(2),
+      currency: booking.currency,
+      customer_name: booking.customer_name,
+      employee: booking.employee
+        ? this.toPublicBookingEmployee(booking.employee)
+        : null,
+      items: booking.items.map((item) => ({
+        id: item.id,
+        service_id: item.service_id,
+        service_name_snapshot: item.service_name_snapshot,
+        duration_minutes_snapshot: item.duration_minutes_snapshot,
+        price_snapshot: Number(item.price_snapshot).toFixed(2),
+        currency_snapshot: item.currency_snapshot,
+        sort_order: item.sort_order,
+      })),
+    };
   }
 }

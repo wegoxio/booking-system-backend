@@ -12,6 +12,7 @@ import { BookingItem } from './entities/booking-item.entity';
 import { EmployeeScheduleRule } from './entities/employee-schedule-rule.entity';
 import { EmployeeScheduleBreak } from './entities/employee-schedule-break.entity';
 import { EmployeeTimeOff } from './entities/employee-time-off.entity';
+import { CaptchaModule } from 'src/captcha/captcha.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { EmployeeTimeOff } from './entities/employee-time-off.entity';
       Tenant,
     ]),
     AuditModule,
+    CaptchaModule,
   ],
   controllers: [BookingsController, BookingsPublicController],
   providers: [BookingsService],

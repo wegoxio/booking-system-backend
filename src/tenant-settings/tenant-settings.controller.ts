@@ -27,6 +27,7 @@ const MAX_ASSET_SIZE_BYTES = 2 * 1024 * 1024;
 type UploadedAssetFile = {
   buffer: Buffer;
   mimetype: string;
+  size?: number;
 };
 
 @Controller('tenant-settings')

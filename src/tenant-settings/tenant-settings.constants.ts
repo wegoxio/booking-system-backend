@@ -53,7 +53,16 @@ export const ALLOWED_IMAGE_MIME_TYPES = new Set<string>([
   'image/png',
   'image/jpeg',
   'image/webp',
-  'image/svg+xml',
   'image/x-icon',
   'image/vnd.microsoft.icon',
 ]);
+
+export const PLATFORM_ASSET_MAX_SIZE_BYTES: Record<TenantSettingsAssetType, number> = {
+  [TenantSettingsAssetType.LOGO]: 2 * 1024 * 1024,
+  [TenantSettingsAssetType.FAVICON]: 512 * 1024,
+};
+
+export const TENANT_ASSET_MAX_SIZE_BYTES: Record<TenantSettingsAssetType, number> = {
+  [TenantSettingsAssetType.LOGO]: 2 * 1024 * 1024,
+  [TenantSettingsAssetType.FAVICON]: 512 * 1024,
+};

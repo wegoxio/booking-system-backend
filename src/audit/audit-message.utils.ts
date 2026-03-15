@@ -8,7 +8,7 @@ const MAX_AUDIT_MESSAGE_LENGTH = 240;
 
 function trimToMaxLength(value: string): string {
   if (value.length <= MAX_AUDIT_MESSAGE_LENGTH) return value;
-  return `${value.slice(0, MAX_AUDIT_MESSAGE_LENGTH - 1)}…`;
+  return `${value.slice(0, MAX_AUDIT_MESSAGE_LENGTH - 3)}...`;
 }
 
 function listUpdatedFields(metadata?: Record<string, any> | null): string {
@@ -24,6 +24,22 @@ function buildByAction(action: string, metadata?: Record<string, any> | null): s
   switch (action) {
     case 'AUTH_LOGIN_SUCCESS':
       return 'Inicio de sesion exitoso.';
+    case 'AUTH_LOGIN_FAILED':
+      return 'Intento de inicio de sesion fallido.';
+    case 'AUTH_LOGIN_BLOCKED':
+      return 'Inicio de sesion bloqueado.';
+    case 'AUTH_ACCOUNT_LOCKED':
+      return 'Cuenta bloqueada temporalmente por intentos fallidos.';
+    case 'AUTH_REFRESH_SUCCESS':
+      return 'Sesion renovada correctamente.';
+    case 'AUTH_REFRESH_FAILED':
+      return 'No se pudo renovar la sesion.';
+    case 'AUTH_REFRESH_REUSE_DETECTED':
+      return 'Se detecto reutilizacion del refresh token; sesiones revocadas.';
+    case 'AUTH_LOGOUT':
+      return 'Sesion cerrada.';
+    case 'AUTH_LOGOUT_ALL':
+      return 'Todas las sesiones fueron cerradas.';
 
     case 'TENANT_CREATED':
       return `Tenant "${metadata?.name ?? 'N/A'}" creado.`;
@@ -97,4 +113,3 @@ export function resolveAuditMessage(input: AuditMessageInput): string {
   const built = buildByAction(input.action, input.metadata);
   return trimToMaxLength(built);
 }
-

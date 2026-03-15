@@ -14,7 +14,9 @@ import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import {
   ALLOWED_IMAGE_MIME_TYPES,
   DEFAULT_BRANDING_SETTINGS,
+  PLATFORM_ASSET_MAX_SIZE_BYTES,
   PLATFORM_SETTINGS_SCOPE,
+  TENANT_ASSET_MAX_SIZE_BYTES,
   TenantSettingsAssetType,
 } from './tenant-settings.constants';
 import {
@@ -36,6 +38,14 @@ import {
 type UploadedAssetFile = {
   buffer: Buffer;
   mimetype: string;
+  size?: number;
+};
+
+type DetectedAssetFormat = 'png' | 'jpg' | 'webp' | 'ico';
+
+type ValidatedAssetFile = {
+  extension: string;
+  contentType: string;
 };
 
 @Injectable()
@@ -105,16 +115,10 @@ export class TenantSettingsService {
     file: UploadedAssetFile,
     currentUser: CurrentJwtUser,
   ): Promise<TenantSettingsResponse> {
-    if (!file?.buffer || !file.mimetype) {
-      throw new BadRequestException('Image file is required');
-    }
-
-    if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
-      throw new BadRequestException('Unsupported image MIME type');
-    }
+    const validatedFile = this.validateUploadedAsset(file, assetType, 'platform');
 
     const settings = await this.getOrCreatePlatformSettings();
-    const extension = this.resolveFileExtension(file.mimetype);
+    const extension = validatedFile.extension;
     const objectKey = `platform/${PLATFORM_SETTINGS_SCOPE.toLowerCase()}/assets/${assetType}.${extension}`;
 
     const previousKey =
@@ -129,7 +133,7 @@ export class TenantSettingsService {
     const assetUrl = await this.s3StorageService.uploadObject({
       key: objectKey,
       body: file.buffer,
-      contentType: file.mimetype,
+      contentType: validatedFile.contentType,
     });
 
     applyBrandingSettings(
@@ -295,16 +299,10 @@ export class TenantSettingsService {
     file: UploadedAssetFile,
     currentUser: CurrentJwtUser,
   ): Promise<TenantSettingsResponse> {
-    if (!file?.buffer || !file.mimetype) {
-      throw new BadRequestException('Image file is required');
-    }
-
-    if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
-      throw new BadRequestException('Unsupported image MIME type');
-    }
+    const validatedFile = this.validateUploadedAsset(file, assetType, 'tenant');
 
     const settings = await this.getOrCreateByTenantId(tenantId);
-    const extension = this.resolveFileExtension(file.mimetype);
+    const extension = validatedFile.extension;
     const objectKey = `tenants/${tenantId}/assets/${assetType}.${extension}`;
 
     const previousKey =
@@ -319,7 +317,7 @@ export class TenantSettingsService {
     const assetUrl = await this.s3StorageService.uploadObject({
       key: objectKey,
       body: file.buffer,
-      contentType: file.mimetype,
+      contentType: validatedFile.contentType,
     });
 
     applyBrandingSettings(
@@ -401,21 +399,144 @@ export class TenantSettingsService {
     }
   }
 
-  private resolveFileExtension(mimeType: string): string {
-    switch (mimeType) {
-      case 'image/png':
+  private validateUploadedAsset(
+    file: UploadedAssetFile,
+    assetType: TenantSettingsAssetType,
+    scope: 'platform' | 'tenant',
+  ): ValidatedAssetFile {
+    if (!file?.buffer || file.buffer.length === 0) {
+      throw new BadRequestException('Image file is required');
+    }
+
+    const fileSizeBytes = typeof file.size === 'number' ? file.size : file.buffer.length;
+    const maxSizeBytes = this.resolveMaxAssetSizeBytes(scope, assetType);
+
+    if (fileSizeBytes > maxSizeBytes) {
+      throw new BadRequestException(
+        `File too large for ${assetType}. Maximum allowed is ${this.formatBytes(maxSizeBytes)}.`,
+      );
+    }
+
+    const detectedFormat = this.detectAssetFormat(file.buffer);
+    if (!detectedFormat) {
+      throw new BadRequestException(
+        'Unsupported image file. Allowed formats: PNG, JPG, WEBP, ICO.',
+      );
+    }
+
+    const declaredMime = file.mimetype?.trim().toLowerCase();
+    if (declaredMime) {
+      if (!ALLOWED_IMAGE_MIME_TYPES.has(declaredMime)) {
+        throw new BadRequestException('Unsupported image MIME type');
+      }
+
+      if (!this.isMimeCompatibleWithFormat(declaredMime, detectedFormat)) {
+        throw new BadRequestException(
+          'File MIME type does not match the actual file content.',
+        );
+      }
+    }
+
+    return {
+      extension: this.extensionFromFormat(detectedFormat),
+      contentType: this.mimeFromFormat(detectedFormat),
+    };
+  }
+
+  private resolveMaxAssetSizeBytes(
+    scope: 'platform' | 'tenant',
+    assetType: TenantSettingsAssetType,
+  ): number {
+    const maxSizeByAssetType =
+      scope === 'platform' ? PLATFORM_ASSET_MAX_SIZE_BYTES : TENANT_ASSET_MAX_SIZE_BYTES;
+
+    return maxSizeByAssetType[assetType];
+  }
+
+  private formatBytes(bytes: number): string {
+    if (bytes >= 1024 * 1024) {
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+
+  private detectAssetFormat(buffer: Buffer): DetectedAssetFormat | null {
+    if (this.startsWithBytes(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
+      return 'png';
+    }
+
+    if (this.startsWithBytes(buffer, [0xff, 0xd8, 0xff])) {
+      return 'jpg';
+    }
+
+    if (
+      buffer.length >= 12 &&
+      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+    ) {
+      return 'webp';
+    }
+
+    if (this.startsWithBytes(buffer, [0x00, 0x00, 0x01, 0x00])) {
+      return 'ico';
+    }
+
+    return null;
+  }
+
+  private startsWithBytes(buffer: Buffer, signature: number[]): boolean {
+    if (buffer.length < signature.length) {
+      return false;
+    }
+
+    return signature.every((byte, index) => buffer[index] === byte);
+  }
+
+  private isMimeCompatibleWithFormat(
+    mimeType: string,
+    format: DetectedAssetFormat,
+  ): boolean {
+    switch (format) {
+      case 'png':
+        return mimeType === 'image/png';
+      case 'jpg':
+        return mimeType === 'image/jpeg';
+      case 'webp':
+        return mimeType === 'image/webp';
+      case 'ico':
+        return mimeType === 'image/x-icon' || mimeType === 'image/vnd.microsoft.icon';
+      default:
+        return false;
+    }
+  }
+
+  private extensionFromFormat(format: DetectedAssetFormat): string {
+    switch (format) {
+      case 'png':
         return 'png';
-      case 'image/jpeg':
+      case 'jpg':
         return 'jpg';
-      case 'image/webp':
+      case 'webp':
         return 'webp';
-      case 'image/svg+xml':
-        return 'svg';
-      case 'image/x-icon':
-      case 'image/vnd.microsoft.icon':
+      case 'ico':
         return 'ico';
       default:
-        throw new BadRequestException('Unsupported image MIME type');
+        throw new BadRequestException('Unsupported image format');
+    }
+  }
+
+  private mimeFromFormat(format: DetectedAssetFormat): string {
+    switch (format) {
+      case 'png':
+        return 'image/png';
+      case 'jpg':
+        return 'image/jpeg';
+      case 'webp':
+        return 'image/webp';
+      case 'ico':
+        return 'image/x-icon';
+      default:
+        throw new BadRequestException('Unsupported image format');
     }
   }
 
