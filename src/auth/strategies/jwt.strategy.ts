@@ -4,35 +4,17 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User, UserRole } from 'src/users/entities/user.entity';
-
-export type JwtPayload = {
-  sub: string;
-  role: UserRole;
-  tenant_id: string | null;
-};
-
-export type CurrentJwtUser = {
-  sub: string;
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  tenant_id: string | null;
-  is_active: boolean;
-  tenant: {
-    id: string;
-    name: string;
-    slug: string;
-    is_active: boolean;
-  } | null;
-};
+import { User } from 'src/users/entities/user.entity';
+import { CurrentJwtUser, JwtPayload } from '../types';
+import { AuthSession } from '../entities/auth-session.entity';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     config: ConfigService,
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    @InjectRepository(AuthSession)
+    private readonly authSessionsRepo: Repository<AuthSession>,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -58,6 +40,28 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Invalid tenant context');
     }
 
+    if (
+      typeof payload.token_version === 'number' &&
+      payload.token_version !== user.token_version
+    ) {
+      throw new UnauthorizedException('Invalid token version');
+    }
+
+    const sessionId =
+      typeof payload.sid === 'string' && payload.sid.trim()
+        ? payload.sid.trim()
+        : null;
+
+    if (sessionId) {
+      const session = await this.authSessionsRepo.findOne({
+        where: { id: sessionId, user_id: user.id },
+      });
+
+      if (!session || session.revoked_at || session.expires_at.getTime() <= Date.now()) {
+        throw new UnauthorizedException('Invalid auth session');
+      }
+    }
+
     return {
       sub: user.id,
       id: user.id,
@@ -65,6 +69,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: user.email,
       role: user.role,
       tenant_id: user.tenant_id ?? null,
+      session_id: sessionId,
+      token_version: user.token_version,
       is_active: user.is_active,
       tenant: user.tenant
         ? {

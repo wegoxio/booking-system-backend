@@ -23,7 +23,8 @@
     "migration:run": "pnpm run typeorm migration:run",
     "migration:revert": "pnpm run typeorm migration:revert",
     "migration:status": "pnpm run typeorm migration:show  -- -d src/database/data-source.ts",
-    "seed:superadmin": "ts-node -r tsconfig-paths/register src/database/seeds/super-admin.seed.ts"
+    "seed:superadmin": "ts-node -r tsconfig-paths/register src/database/seeds/super-admin.seed.ts",
+    "db:reset": "ts-node -r tsconfig-paths/register src/database/scripts/reset-db.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1008.0",
@@ -34,11 +35,15 @@
     "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^11.0.0",
+    "@types/cookie-parser": "^1.4.10",
     "argon2": "^0.44.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "cookie-parser": "^1.4.7",
     "dotenv": "^17.3.1",
+    "helmet": "^8.1.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.19.0",

@@ -38,6 +38,10 @@ export class AuditLog {
   @Column({ type: 'varchar' })
   action: string;
 
+  // Mensaje legible para usuario final
+  @Column({ type: 'varchar', length: 240, nullable: true })
+  message: string | null;
+
   // Opcional: entidad afectada y su id
   @Column({ type: 'varchar', nullable: true })
   entity: string | null;

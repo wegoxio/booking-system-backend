@@ -18,7 +18,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { Roles } from 'src/common/decorators/roles.decorator';
-import type { CurrentJwtUser } from 'src/auth/strategies/jwt.strategy';
+import type { CurrentJwtUser } from 'src/auth/types'; 
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { TenantSettingsService } from './tenant-settings.service';
 import { TenantSettingsAssetType } from './tenant-settings.constants';
@@ -27,6 +27,8 @@ const MAX_ASSET_SIZE_BYTES = 2 * 1024 * 1024;
 type UploadedAssetFile = {
   buffer: Buffer;
   mimetype: string;
+  size?: number;
+  originalname?: string;
 };
 
 @Controller('tenant-settings')

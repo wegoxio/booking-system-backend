@@ -5,6 +5,7 @@ import { Tenant } from 'src/tenant/entities/tenant.entity';
 import { TenantSetting } from './entities/tenant-setting.entity';
 import { PlatformSetting } from './entities/platform-setting.entity';
 import { TenantSettingsController } from './tenant-settings.controller';
+import { TenantSettingsPublicController } from './tenant-settings-public.controller';
 import { TenantSettingsService } from './tenant-settings.service';
 import { S3StorageService } from './services/s3-storage.service';
 
@@ -13,7 +14,7 @@ import { S3StorageService } from './services/s3-storage.service';
     TypeOrmModule.forFeature([TenantSetting, PlatformSetting, Tenant]),
     AuditModule,
   ],
-  controllers: [TenantSettingsController],
+  controllers: [TenantSettingsController, TenantSettingsPublicController],
   providers: [TenantSettingsService, S3StorageService],
   exports: [TenantSettingsService],
 })

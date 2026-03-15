@@ -10,6 +10,10 @@ import { AuditModule } from './audit/audit.module';
 import { ServicesModule } from './services/services.module';
 import { EmployeesModule } from './employees/employees.module';
 import { TenantSettingsModule } from './tenant-settings/tenant-settings.module';
+import { BookingsModule } from './bookings/bookings.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -19,10 +23,24 @@ import { TenantSettingsModule } from './tenant-settings/tenant-settings.module';
     AuditModule,
     ServicesModule,
     EmployeesModule,
+    BookingsModule,
+    DashboardModule,
     TenantSettingsModule,
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv
+    }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            name: 'default',
+            ttl: config.get<number>('RATE_LIMIT_TTL_MS', 60_000),
+            limit: config.get<number>('RATE_LIMIT_LIMIT', 120),
+          },
+        ],
+      }),
     }),
 
     TypeOrmModule.forRootAsync({
@@ -31,6 +49,11 @@ import { TenantSettingsModule } from './tenant-settings/tenant-settings.module';
     }),
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule { }

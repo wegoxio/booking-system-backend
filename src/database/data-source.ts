@@ -8,6 +8,12 @@ import { Service } from 'src/services/entity/service.entity';
 import { Employee } from 'src/employees/entities/employee.entity';
 import { TenantSetting } from 'src/tenant-settings/entities/tenant-setting.entity';
 import { PlatformSetting } from 'src/tenant-settings/entities/platform-setting.entity';
+import { Booking } from 'src/bookings/entities/booking.entity';
+import { BookingItem } from 'src/bookings/entities/booking-item.entity';
+import { EmployeeScheduleRule } from 'src/bookings/entities/employee-schedule-rule.entity';
+import { EmployeeScheduleBreak } from 'src/bookings/entities/employee-schedule-break.entity';
+import { EmployeeTimeOff } from 'src/bookings/entities/employee-time-off.entity';
+import { AuthSession } from 'src/auth/entities/auth-session.entity';
 
 function envBool(name: string, defaultValue = false): boolean {
     const v = process.env[name];
@@ -45,6 +51,12 @@ export const AppDataSource = new DataSource({
         AuditLog,
         Service,
         Employee,
+        Booking,
+        BookingItem,
+        EmployeeScheduleRule,
+        EmployeeScheduleBreak,
+        EmployeeTimeOff,
+        AuthSession,
         TenantSetting,
         PlatformSetting,
     ],

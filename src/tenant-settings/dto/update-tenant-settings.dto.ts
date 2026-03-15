@@ -1,11 +1,14 @@
 import { Type } from 'class-transformer';
 import {
+  IsIn,
+  IsObject,
   IsOptional,
   IsString,
   Length,
   Matches,
   ValidateNested,
 } from 'class-validator';
+import { THEME_MODE_VALUES } from '../tenant-settings.constants';
 
 const HEX_COLOR_REGEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
@@ -13,72 +16,32 @@ class ThemeSettingsDto {
   @IsOptional()
   @IsString()
   @Matches(HEX_COLOR_REGEX)
-  appBg?: string;
+  primary?: string;
 
   @IsOptional()
   @IsString()
   @Matches(HEX_COLOR_REGEX)
-  shellBg?: string;
+  secondary?: string;
 
   @IsOptional()
   @IsString()
   @Matches(HEX_COLOR_REGEX)
-  sidebarBgStart?: string;
+  tertiary?: string;
 
   @IsOptional()
   @IsString()
   @Matches(HEX_COLOR_REGEX)
-  sidebarBgEnd?: string;
+  primaryHover?: string;
 
   @IsOptional()
   @IsString()
   @Matches(HEX_COLOR_REGEX)
-  sidebarText?: string;
+  secondaryHover?: string;
 
   @IsOptional()
   @IsString()
   @Matches(HEX_COLOR_REGEX)
-  sidebarActiveBg?: string;
-
-  @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_REGEX)
-  sidebarActiveText?: string;
-
-  @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_REGEX)
-  navbarBg?: string;
-
-  @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_REGEX)
-  navbarBorder?: string;
-
-  @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_REGEX)
-  iconButtonBg?: string;
-
-  @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_REGEX)
-  iconButtonBorder?: string;
-
-  @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_REGEX)
-  iconButtonText?: string;
-
-  @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_REGEX)
-  cardBg?: string;
-
-  @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_REGEX)
-  cardBorder?: string;
+  tertiaryHover?: string;
 
   @IsOptional()
   @IsString()
@@ -88,17 +51,12 @@ class ThemeSettingsDto {
   @IsOptional()
   @IsString()
   @Matches(HEX_COLOR_REGEX)
-  textMuted?: string;
+  textSecondary?: string;
 
   @IsOptional()
   @IsString()
   @Matches(HEX_COLOR_REGEX)
-  primaryAccent?: string;
-
-  @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_REGEX)
-  primaryAccentText?: string;
+  textTertiary?: string;
 }
 
 class BrandingSettingsDto {
@@ -128,6 +86,15 @@ export class UpdateTenantSettingsDto {
   @ValidateNested()
   @Type(() => ThemeSettingsDto)
   theme?: ThemeSettingsDto;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(THEME_MODE_VALUES)
+  themeMode?: 'AUTO' | 'ADVANCED';
+
+  @IsOptional()
+  @IsObject()
+  themeOverrides?: Record<string, string>;
 
   @IsOptional()
   @ValidateNested()

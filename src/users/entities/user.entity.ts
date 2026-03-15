@@ -31,4 +31,19 @@ export class User extends BaseEntity {
 
   @Column({ default: true })
   is_active: boolean;
+
+  @Column({ type: 'integer', default: 0 })
+  token_version: number;
+
+  @Column({ type: 'integer', default: 0 })
+  failed_login_attempts: number;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  last_failed_login_at: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  locked_until: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  last_login_at: Date | null;
 }

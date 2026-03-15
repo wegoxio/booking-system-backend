@@ -11,12 +11,7 @@ import * as argon2 from 'argon2';
 import { CreateTenantAdminDto } from './dto/create-tenant-admin.dto';
 import { UpdateTenantAdminDto } from './dto/update-tenant-admin.dto';
 import { AuditService } from 'src/audit/audit.service';
-
-type CurrentJwtUser = {
-  sub: string;
-  role: 'SUPER_ADMIN' | 'TENANT_ADMIN';
-  tenant_id: string | null;
-};
+import { CurrentJwtUser } from 'src/auth/types';
 
 type TenantAdminResponse = {
   id: string;
