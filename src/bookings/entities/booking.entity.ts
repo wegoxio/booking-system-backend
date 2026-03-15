@@ -38,6 +38,21 @@ export class Booking extends TenantBaseEntity {
   @Column({ type: 'varchar', length: 20 })
   status: string;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  completed_at_utc: Date | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  completed_by_user_id: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  cancelled_at_utc: Date | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  cancelled_by_user_id: string | null;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  cancellation_reason: string | null;
+
   @Column({ type: 'int' })
   total_duration_minutes: number;
 

@@ -13,6 +13,7 @@ export class AuthCookieService {
   private readonly refreshCookieSameSite: RefreshCookieSameSite;
   private readonly refreshCookieSecure: boolean;
   private readonly csrfCookieName: string;
+  private readonly csrfCookiePath: string;
   private readonly csrfHeaderName: string;
 
   constructor(private readonly configService: ConfigService) {
@@ -39,6 +40,10 @@ export class AuthCookieService {
     this.csrfCookieName = this.configService.get<string>(
       'AUTH_CSRF_COOKIE_NAME',
       'weegox_csrf',
+    );
+    this.csrfCookiePath = this.configService.get<string>(
+      'AUTH_CSRF_COOKIE_PATH',
+      '/',
     );
     this.csrfHeaderName = this.configService
       .get<string>('AUTH_CSRF_HEADER_NAME', 'x-csrf-token')
@@ -101,7 +106,7 @@ export class AuthCookieService {
       httpOnly: false,
       secure: this.refreshCookieSecure,
       sameSite: this.refreshCookieSameSite,
-      path: this.refreshCookiePath,
+      path: this.csrfCookiePath,
       ...(this.refreshCookieDomain ? { domain: this.refreshCookieDomain } : {}),
       expires: refreshExpiresAt,
     });
@@ -120,7 +125,7 @@ export class AuthCookieService {
       httpOnly: false,
       secure: this.refreshCookieSecure,
       sameSite: this.refreshCookieSameSite,
-      path: this.refreshCookiePath,
+      path: this.csrfCookiePath,
       ...(this.refreshCookieDomain ? { domain: this.refreshCookieDomain } : {}),
     });
   }

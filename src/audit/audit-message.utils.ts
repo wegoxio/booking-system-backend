@@ -81,7 +81,9 @@ function buildByAction(action: string, metadata?: Record<string, any> | null): s
     case 'BOOKING_CREATED':
       return `Booking creada (${Array.isArray(metadata?.service_ids) ? metadata.service_ids.length : 0} servicio(s)).`;
     case 'BOOKING_STATUS_UPDATED':
-      return `Estado de booking cambiado a ${metadata?.status ?? 'N/A'}.`;
+      return metadata?.cancellation_reason
+        ? `Estado de booking cambiado a ${metadata?.status ?? 'N/A'} (${metadata.cancellation_reason}).`
+        : `Estado de booking cambiado a ${metadata?.status ?? 'N/A'}.`;
 
     case 'TENANT_SETTINGS_UPDATED':
       return `Settings del tenant actualizados (${listUpdatedFields(metadata)}).`;

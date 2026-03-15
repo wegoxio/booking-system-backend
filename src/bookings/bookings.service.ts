@@ -7,6 +7,7 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { AuditService } from 'src/audit/audit.service';
 import { Employee } from 'src/employees/entities/employee.entity';
+import { NotificationsService } from 'src/notifications/notifications.service';
 import { Service } from 'src/services/entity/service.entity';
 import { Tenant } from 'src/tenant/entities/tenant.entity';
 import { DataSource, In, LessThan, MoreThan, Repository } from 'typeorm';
@@ -33,7 +34,9 @@ import {
 import { CreateBookingDto } from './dto/create-booking.dto';
 import {
   BOOKING_BLOCKING_STATUSES,
+  BOOKING_CANCELLATION_STATUSES,
   BOOKING_STATUSES,
+  BOOKING_STATUS_TRANSITIONS,
 } from './bookings.constants';
 import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
@@ -69,6 +72,7 @@ export class BookingsService {
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly auditService: AuditService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async findEligibleEmployees(
@@ -486,16 +490,63 @@ export class BookingsService {
     currentUser: CurrentJwtUser,
   ): Promise<Booking> {
     const booking = await this.findOne(id, currentUser);
+    const previousStatus = booking.status;
+    const nextStatus = dto.status;
+    const cancellationReason = dto.cancellation_reason?.trim() || null;
+    const isCancellationStatus = this.isCancellationStatus(nextStatus);
 
-    if (!BOOKING_STATUSES.includes(dto.status)) {
+    if (!BOOKING_STATUSES.includes(nextStatus)) {
       throw new BadRequestException('Invalid booking status');
     }
 
-    if (booking.status === dto.status) {
+    if (booking.status === nextStatus) {
       return booking;
     }
 
-    booking.status = dto.status;
+    const allowedTransitions =
+      BOOKING_STATUS_TRANSITIONS[
+        previousStatus as keyof typeof BOOKING_STATUS_TRANSITIONS
+      ];
+    if (!allowedTransitions?.includes(nextStatus)) {
+      throw new BadRequestException(
+        `Cannot transition booking from ${previousStatus} to ${nextStatus}`,
+      );
+    }
+
+    if (isCancellationStatus && !cancellationReason) {
+      throw new BadRequestException(
+        'Cancellation reason is required when cancelling or marking a booking as no-show',
+      );
+    }
+
+    if (!isCancellationStatus && cancellationReason) {
+      throw new BadRequestException(
+        'Cancellation reason can only be provided for cancelled or no-show bookings',
+      );
+    }
+
+    booking.status = nextStatus;
+
+    if (nextStatus === 'COMPLETED') {
+      booking.completed_at_utc = new Date();
+      booking.completed_by_user_id = currentUser.sub;
+      booking.cancelled_at_utc = null;
+      booking.cancelled_by_user_id = null;
+      booking.cancellation_reason = null;
+    } else if (isCancellationStatus) {
+      booking.cancelled_at_utc = new Date();
+      booking.cancelled_by_user_id = currentUser.sub;
+      booking.cancellation_reason = cancellationReason;
+      booking.completed_at_utc = null;
+      booking.completed_by_user_id = null;
+    } else {
+      booking.completed_at_utc = null;
+      booking.completed_by_user_id = null;
+      booking.cancelled_at_utc = null;
+      booking.cancelled_by_user_id = null;
+      booking.cancellation_reason = null;
+    }
+
     const updated = await this.bookingsRepository.save(booking);
 
     await this.auditService.log({
@@ -505,11 +556,27 @@ export class BookingsService {
       entity: 'booking',
       entity_id: booking.id,
       metadata: {
+        previous_status: previousStatus,
         status: updated.status,
+        cancellation_reason: updated.cancellation_reason,
       },
     });
 
-    return this.findOneByTenantId(updated.id, booking.tenant_id);
+    const hydratedBooking = await this.findOneByTenantId(updated.id, booking.tenant_id);
+
+    if (nextStatus === 'COMPLETED') {
+      void this.notificationsService.sendBookingLifecycleNotifications(
+        hydratedBooking,
+        'BOOKING_COMPLETED',
+      );
+    } else if (isCancellationStatus) {
+      void this.notificationsService.sendBookingLifecycleNotifications(
+        hydratedBooking,
+        'BOOKING_CANCELLED',
+      );
+    }
+
+    return hydratedBooking;
   }
 
   private async createBookingForTenant(
@@ -586,7 +653,7 @@ export class BookingsService {
         employee_id: employee.id,
         start_at_utc: matchedSlot.start_at_utc,
         end_at_utc: matchedSlot.end_at_utc,
-        status: 'CONFIRMED',
+        status: 'PENDING',
         total_duration_minutes: totalDurationMinutes,
         total_price: totalPrice.toFixed(2),
         currency,
@@ -631,7 +698,14 @@ export class BookingsService {
       });
     }
 
-    return this.findOneByTenantId(booking.id, tenantId);
+    const hydratedBooking = await this.findOneByTenantId(booking.id, tenantId);
+
+    void this.notificationsService.sendBookingLifecycleNotifications(
+      hydratedBooking,
+      'BOOKING_CREATED',
+    );
+
+    return hydratedBooking;
   }
 
   private async computeAvailability(input: {
@@ -1033,6 +1107,10 @@ export class BookingsService {
 
   private normalizeLocalTime(value: string): string {
     return value.trim().slice(0, 5);
+  }
+
+  private isCancellationStatus(status: string): status is 'CANCELLED' | 'NO_SHOW' {
+    return (BOOKING_CANCELLATION_STATUSES as readonly string[]).includes(status);
   }
 
   private toPublicBookingEmployee(employee: Employee): PublicBookingEmployee {

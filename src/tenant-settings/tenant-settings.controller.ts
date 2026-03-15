@@ -28,6 +28,7 @@ type UploadedAssetFile = {
   buffer: Buffer;
   mimetype: string;
   size?: number;
+  originalname?: string;
 };
 
 @Controller('tenant-settings')

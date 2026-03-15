@@ -91,6 +91,7 @@ export const envSchema = z.object({
   AUTH_REFRESH_COOKIE_SECURE: z
     .preprocess(parseOptionalBoolean, z.boolean().optional()),
   AUTH_CSRF_COOKIE_NAME: z.string().min(1).default('weegox_csrf'),
+  AUTH_CSRF_COOKIE_PATH: z.string().min(1).default('/'),
   AUTH_CSRF_HEADER_NAME: z.string().min(1).default('x-csrf-token'),
   TURNSTILE_ENABLED: z.coerce.boolean().default(false),
   TURNSTILE_SECRET_KEY: z.string().optional(),
@@ -125,6 +126,36 @@ export const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   AWS_SESSION_TOKEN: z.string().optional(),
   AWS_S3_FORCE_PATH_STYLE: z.coerce.boolean().default(false),
+
+  // Email notifications
+  APP_PUBLIC_URL: z.string().url(),
+  MAIL_ENABLED: z.coerce.boolean().default(false),
+  MAIL_FROM_EMAIL: z.string().email().optional(),
+  MAIL_FROM_NAME: z.string().min(1).default('Wegox Booking'),
+  MAIL_REPLY_TO_EMAIL: z.string().email().optional(),
+  MAIL_ASSET_BASE_URL: z.string().url().optional(),
+  MAIL_RESEND_MIN_INTERVAL_MS: z.coerce.number().default(650),
+  RESEND_API_KEY: z.string().optional(),
+}).superRefine((value, ctx) => {
+  if (!value.MAIL_ENABLED) {
+    return;
+  }
+
+  if (!value.MAIL_FROM_EMAIL) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['MAIL_FROM_EMAIL'],
+      message: 'MAIL_FROM_EMAIL es requerido cuando MAIL_ENABLED=true',
+    });
+  }
+
+  if (!value.RESEND_API_KEY) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['RESEND_API_KEY'],
+      message: 'RESEND_API_KEY es requerido cuando MAIL_ENABLED=true',
+    });
+  }
 });
 
 export type EnvVars = z.infer<typeof envSchema>;

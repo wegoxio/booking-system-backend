@@ -14,11 +14,12 @@ import {
   TenantThemeOverrides,
   TenantThemeSettings,
 } from './tenant-settings.types';
+import { normalizeThemeSettings } from './tenant-theme.utils';
 
 type SettingsEntity = PlatformSetting | TenantSetting;
 
 export function extractThemeSettings(entity: SettingsEntity): TenantThemeSettings {
-  return {
+  return normalizeThemeSettings({
     primary: entity.primary_color ?? DEFAULT_THEME_SETTINGS.primary,
     secondary: entity.secondary_color ?? DEFAULT_THEME_SETTINGS.secondary,
     tertiary: entity.tertiary_color ?? DEFAULT_THEME_SETTINGS.tertiary,
@@ -34,7 +35,7 @@ export function extractThemeSettings(entity: SettingsEntity): TenantThemeSetting
       entity.text_secondary_color ?? DEFAULT_THEME_SETTINGS.textSecondary,
     textTertiary:
       entity.text_tertiary_color ?? DEFAULT_THEME_SETTINGS.textTertiary,
-  };
+  });
 }
 
 export function extractBrandingSettings(
@@ -120,43 +121,29 @@ export function applyBrandingSettings(
   if (branding.windowTitle !== undefined) {
     entity.window_title = branding.windowTitle;
   }
-  if (branding.logoUrl !== undefined) entity.logo_url = branding.logoUrl;
+  if (branding.logoUrl !== undefined) {
+    if (entity.logo_url !== branding.logoUrl) {
+      entity.logo_key = null;
+    }
+    entity.logo_url = branding.logoUrl;
+  }
   if (branding.faviconUrl !== undefined) {
+    if (entity.favicon_url !== branding.faviconUrl) {
+      entity.favicon_key = null;
+    }
     entity.favicon_url = branding.faviconUrl;
   }
 }
 
 export function applyDefaultSettings(entity: SettingsEntity) {
-  applyThemeSettings(entity, DEFAULT_THEME_SETTINGS);
+  applyThemeSettings(entity, normalizeThemeSettings(DEFAULT_THEME_SETTINGS));
   applyThemeMode(entity, DEFAULT_THEME_MODE as TenantThemeMode);
   applyThemeOverrides(entity, DEFAULT_THEME_OVERRIDES);
   applyBrandingSettings(entity, DEFAULT_BRANDING_SETTINGS);
 }
 
 export function ensureSettingsDefaults(entity: SettingsEntity) {
-  if (!entity.primary_color) entity.primary_color = DEFAULT_THEME_SETTINGS.primary;
-  if (!entity.secondary_color) {
-    entity.secondary_color = DEFAULT_THEME_SETTINGS.secondary;
-  }
-  if (!entity.tertiary_color) entity.tertiary_color = DEFAULT_THEME_SETTINGS.tertiary;
-  if (!entity.primary_hover_color) {
-    entity.primary_hover_color = DEFAULT_THEME_SETTINGS.primaryHover;
-  }
-  if (!entity.secondary_hover_color) {
-    entity.secondary_hover_color = DEFAULT_THEME_SETTINGS.secondaryHover;
-  }
-  if (!entity.tertiary_hover_color) {
-    entity.tertiary_hover_color = DEFAULT_THEME_SETTINGS.tertiaryHover;
-  }
-  if (!entity.text_primary_color) {
-    entity.text_primary_color = DEFAULT_THEME_SETTINGS.textPrimary;
-  }
-  if (!entity.text_secondary_color) {
-    entity.text_secondary_color = DEFAULT_THEME_SETTINGS.textSecondary;
-  }
-  if (!entity.text_tertiary_color) {
-    entity.text_tertiary_color = DEFAULT_THEME_SETTINGS.textTertiary;
-  }
+  applyThemeSettings(entity, extractThemeSettings(entity));
   if (!entity.theme_mode) {
     entity.theme_mode = DEFAULT_THEME_MODE;
   }

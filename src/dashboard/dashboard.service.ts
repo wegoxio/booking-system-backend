@@ -2,6 +2,10 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { resolveAuditMessage } from 'src/audit/audit-message.utils';
 import { AuditLog } from 'src/audit/entities/audit-log.entity';
+import {
+  BOOKING_CANCELLATION_STATUSES,
+  BOOKING_REVENUE_STATUSES,
+} from 'src/bookings/bookings.constants';
 import { Booking } from 'src/bookings/entities/booking.entity';
 import { Employee } from 'src/employees/entities/employee.entity';
 import { Service } from 'src/services/entity/service.entity';
@@ -12,9 +16,6 @@ import { DashboardOverviewQueryDto } from './dto/dashboard-overview-query.dto';
 import type { CurrentJwtUser } from 'src/auth/types';
 import { DashboardChartPoint, DashboardEmployeeTableRow, DashboardOverviewResponse, DashboardRecentLog, DashboardTenantTableRow, PeriodSummary } from './types';
 
-
-const BOOKING_REVENUE_STATUSES = ['CONFIRMED', 'IN_PROGRESS', 'COMPLETED'] as const;
-const BOOKING_CANCELLED_STATUSES = ['CANCELLED', 'NO_SHOW'] as const;
 
 @Injectable()
 export class DashboardService {
@@ -303,7 +304,7 @@ export class DashboardService {
       .select(`TO_CHAR(DATE_TRUNC('month', booking.start_at_utc), 'YYYY-MM')`, 'month_key')
       .addSelect('COUNT(*)::int', 'bookings_count')
       .addSelect(
-        `COUNT(*) FILTER (WHERE booking.status IN ('${BOOKING_CANCELLED_STATUSES.join("','")}'))::int`,
+        `COUNT(*) FILTER (WHERE booking.status IN ('${BOOKING_CANCELLATION_STATUSES.join("','")}'))::int`,
         'cancelled_count',
       )
       .addSelect(

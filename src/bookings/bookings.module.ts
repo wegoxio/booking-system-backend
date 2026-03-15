@@ -13,6 +13,7 @@ import { EmployeeScheduleRule } from './entities/employee-schedule-rule.entity';
 import { EmployeeScheduleBreak } from './entities/employee-schedule-break.entity';
 import { EmployeeTimeOff } from './entities/employee-time-off.entity';
 import { CaptchaModule } from 'src/captcha/captcha.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { CaptchaModule } from 'src/captcha/captcha.module';
     ]),
     AuditModule,
     CaptchaModule,
+    NotificationsModule,
   ],
   controllers: [BookingsController, BookingsPublicController],
   providers: [BookingsService],

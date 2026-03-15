@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditService } from 'src/audit/audit.service';
@@ -39,6 +41,7 @@ type UploadedAssetFile = {
   buffer: Buffer;
   mimetype: string;
   size?: number;
+  originalname?: string;
 };
 
 type DetectedAssetFormat = 'png' | 'jpg' | 'webp' | 'ico';
@@ -50,6 +53,8 @@ type ValidatedAssetFile = {
 
 @Injectable()
 export class TenantSettingsService {
+  private readonly logger = new Logger(TenantSettingsService.name);
+
   constructor(
     @InjectRepository(TenantSetting)
     private readonly tenantSettingsRepository: Repository<TenantSetting>,
@@ -119,37 +124,45 @@ export class TenantSettingsService {
 
     const settings = await this.getOrCreatePlatformSettings();
     const extension = validatedFile.extension;
-    const objectKey = `platform/${PLATFORM_SETTINGS_SCOPE.toLowerCase()}/assets/${assetType}.${extension}`;
+    const objectKey = this.buildPlatformAssetObjectKey(
+      assetType,
+      extension,
+      file.originalname,
+    );
 
     const previousKey =
       assetType === TenantSettingsAssetType.LOGO
         ? settings.logo_key
         : settings.favicon_key;
 
-    if (previousKey && previousKey !== objectKey) {
-      await this.s3StorageService.deleteObject(previousKey);
-    }
-
     const assetUrl = await this.s3StorageService.uploadObject({
       key: objectKey,
       body: file.buffer,
       contentType: validatedFile.contentType,
     });
+    let updated: PlatformSetting;
 
-    applyBrandingSettings(
-      settings,
-      assetType === TenantSettingsAssetType.LOGO
-        ? { logoUrl: assetUrl }
-        : { faviconUrl: assetUrl },
-    );
+    try {
+      applyBrandingSettings(
+        settings,
+        assetType === TenantSettingsAssetType.LOGO
+          ? { logoUrl: assetUrl }
+          : { faviconUrl: assetUrl },
+      );
 
-    if (assetType === TenantSettingsAssetType.LOGO) {
-      settings.logo_key = objectKey;
-    } else {
-      settings.favicon_key = objectKey;
+      if (assetType === TenantSettingsAssetType.LOGO) {
+        settings.logo_key = objectKey;
+      } else {
+        settings.favicon_key = objectKey;
+      }
+
+      updated = await this.platformSettingsRepository.save(settings);
+    } catch (error) {
+      await this.safeDeleteAssetObject(objectKey);
+      throw error;
     }
 
-    const updated = await this.platformSettingsRepository.save(settings);
+    await this.safeDeletePreviousAsset(previousKey, objectKey);
 
     await this.auditService.log({
       actor_user_id: currentUser.sub,
@@ -303,37 +316,46 @@ export class TenantSettingsService {
 
     const settings = await this.getOrCreateByTenantId(tenantId);
     const extension = validatedFile.extension;
-    const objectKey = `tenants/${tenantId}/assets/${assetType}.${extension}`;
+    const objectKey = this.buildTenantAssetObjectKey(
+      tenantId,
+      assetType,
+      extension,
+      file.originalname,
+    );
 
     const previousKey =
       assetType === TenantSettingsAssetType.LOGO
         ? settings.logo_key
         : settings.favicon_key;
 
-    if (previousKey && previousKey !== objectKey) {
-      await this.s3StorageService.deleteObject(previousKey);
-    }
-
     const assetUrl = await this.s3StorageService.uploadObject({
       key: objectKey,
       body: file.buffer,
       contentType: validatedFile.contentType,
     });
+    let updated: TenantSetting;
 
-    applyBrandingSettings(
-      settings,
-      assetType === TenantSettingsAssetType.LOGO
-        ? { logoUrl: assetUrl }
-        : { faviconUrl: assetUrl },
-    );
+    try {
+      applyBrandingSettings(
+        settings,
+        assetType === TenantSettingsAssetType.LOGO
+          ? { logoUrl: assetUrl }
+          : { faviconUrl: assetUrl },
+      );
 
-    if (assetType === TenantSettingsAssetType.LOGO) {
-      settings.logo_key = objectKey;
-    } else {
-      settings.favicon_key = objectKey;
+      if (assetType === TenantSettingsAssetType.LOGO) {
+        settings.logo_key = objectKey;
+      } else {
+        settings.favicon_key = objectKey;
+      }
+
+      updated = await this.tenantSettingsRepository.save(settings);
+    } catch (error) {
+      await this.safeDeleteAssetObject(objectKey);
+      throw error;
     }
 
-    const updated = await this.tenantSettingsRepository.save(settings);
+    await this.safeDeletePreviousAsset(previousKey, objectKey);
 
     await this.auditService.log({
       actor_user_id: currentUser.sub,
@@ -571,5 +593,81 @@ export class TenantSettingsService {
         slug: business.slug,
       },
     };
+  }
+
+  private buildPlatformAssetObjectKey(
+    assetType: TenantSettingsAssetType,
+    extension: string,
+    originalName?: string,
+  ): string {
+    const fileName = this.buildVersionedAssetFileName(
+      assetType,
+      extension,
+      originalName,
+    );
+    return `platform/${PLATFORM_SETTINGS_SCOPE.toLowerCase()}/assets/${assetType}/${fileName}`;
+  }
+
+  private buildTenantAssetObjectKey(
+    tenantId: string,
+    assetType: TenantSettingsAssetType,
+    extension: string,
+    originalName?: string,
+  ): string {
+    const fileName = this.buildVersionedAssetFileName(
+      assetType,
+      extension,
+      originalName,
+    );
+    return `tenants/${tenantId}/assets/${assetType}/${fileName}`;
+  }
+
+  private buildVersionedAssetFileName(
+    assetType: TenantSettingsAssetType,
+    extension: string,
+    originalName?: string,
+  ): string {
+    const normalizedBaseName = this.sanitizeAssetBaseName(
+      originalName,
+      assetType,
+    );
+    return `${normalizedBaseName}-${randomUUID()}.${extension}`;
+  }
+
+  private sanitizeAssetBaseName(
+    originalName: string | undefined,
+    fallbackName: string,
+  ): string {
+    const rawBaseName = originalName?.trim().replace(/\.[^.]+$/, '') || fallbackName;
+    const normalized = rawBaseName
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 80);
+
+    return normalized || fallbackName.toLowerCase();
+  }
+
+  private async safeDeletePreviousAsset(
+    previousKey: string | null,
+    currentKey: string,
+  ): Promise<void> {
+    if (!previousKey || previousKey === currentKey) {
+      return;
+    }
+
+    await this.safeDeleteAssetObject(previousKey);
+  }
+
+  private async safeDeleteAssetObject(key: string): Promise<void> {
+    try {
+      await this.s3StorageService.deleteObject(key);
+    } catch (error) {
+      this.logger.warn(
+        `Unable to delete stale asset object ${key}: ${String(error)}`,
+      );
+    }
   }
 }
