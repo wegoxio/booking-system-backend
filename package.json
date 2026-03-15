@@ -23,7 +23,8 @@
     "migration:run": "pnpm run typeorm migration:run",
     "migration:revert": "pnpm run typeorm migration:revert",
     "migration:status": "pnpm run typeorm migration:show  -- -d src/database/data-source.ts",
-    "seed:superadmin": "ts-node -r tsconfig-paths/register src/database/seeds/super-admin.seed.ts"
+    "seed:superadmin": "ts-node -r tsconfig-paths/register src/database/seeds/super-admin.seed.ts",
+    "db:reset": "ts-node -r tsconfig-paths/register src/database/scripts/reset-db.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1008.0",

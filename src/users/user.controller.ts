@@ -15,12 +15,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { UserService } from './user.service';
 import { CreateTenantAdminDto } from './dto/create-tenant-admin.dto';
 import { UpdateTenantAdminDto } from './dto/update-tenant-admin.dto';
-
-type CurrentJwtUser = {
-  sub: string;
-  role: 'SUPER_ADMIN' | 'TENANT_ADMIN';
-  tenant_id: string | null;
-};
+import type { CurrentJwtUser } from 'src/auth/types';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)

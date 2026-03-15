@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { LoginDto } from './dto/login.dto';
 import { Tenant } from 'src/tenant/entities/tenant.entity';
 import { User } from 'src/users/entities/user.entity';
+import { AuditService } from 'src/audit/audit.service';
 
 @Injectable()
 export class AuthService {
@@ -13,9 +14,13 @@ export class AuthService {
     private jwt: JwtService,
     @InjectRepository(User) private usersRepo: Repository<User>,
     @InjectRepository(Tenant) private tenantsRepo: Repository<Tenant>,
+    private readonly auditService: AuditService,
   ) {}
 
-  async login(dto: LoginDto) {
+  async login(
+    dto: LoginDto,
+    context?: { ip?: string | null; user_agent?: string | null },
+  ) {
     const email = dto.email.toLowerCase().trim();
 
     const user = await this.usersRepo.findOne({ where: { email } });
@@ -46,6 +51,19 @@ export class AuthService {
       role: user.role,
       tenant_id: user.tenant_id ?? null,
     };
+
+    await this.auditService.log({
+      actor_user_id: user.id,
+      tenant_id: user.tenant_id ?? null,
+      action: 'AUTH_LOGIN_SUCCESS',
+      entity: 'auth',
+      entity_id: user.id,
+      metadata: {
+        role: user.role,
+      },
+      ip: context?.ip ?? null,
+      user_agent: context?.user_agent ?? null,
+    });
 
     return {
       access_token: this.jwt.sign(payload),

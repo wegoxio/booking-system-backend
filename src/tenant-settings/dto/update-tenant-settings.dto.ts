@@ -1,11 +1,14 @@
 import { Type } from 'class-transformer';
 import {
+  IsIn,
+  IsObject,
   IsOptional,
   IsString,
   Length,
   Matches,
   ValidateNested,
 } from 'class-validator';
+import { THEME_MODE_VALUES } from '../tenant-settings.constants';
 
 const HEX_COLOR_REGEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
@@ -83,6 +86,15 @@ export class UpdateTenantSettingsDto {
   @ValidateNested()
   @Type(() => ThemeSettingsDto)
   theme?: ThemeSettingsDto;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(THEME_MODE_VALUES)
+  themeMode?: 'AUTO' | 'ADVANCED';
+
+  @IsOptional()
+  @IsObject()
+  themeOverrides?: Record<string, string>;
 
   @IsOptional()
   @ValidateNested()

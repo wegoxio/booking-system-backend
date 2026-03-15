@@ -10,6 +10,8 @@ import { AuditModule } from './audit/audit.module';
 import { ServicesModule } from './services/services.module';
 import { EmployeesModule } from './employees/employees.module';
 import { TenantSettingsModule } from './tenant-settings/tenant-settings.module';
+import { BookingsModule } from './bookings/bookings.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { TenantSettingsModule } from './tenant-settings/tenant-settings.module';
     AuditModule,
     ServicesModule,
     EmployeesModule,
+    BookingsModule,
+    DashboardModule,
     TenantSettingsModule,
     ConfigModule.forRoot({
       isGlobal: true,

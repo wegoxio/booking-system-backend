@@ -40,6 +40,12 @@ export class TenantSetting extends BaseEntity {
   @Column({ name: 'text_tertiary_color', type: 'varchar', length: 9 })
   text_tertiary_color: string;
 
+  @Column({ name: 'theme_mode', type: 'varchar', length: 16, default: 'AUTO' })
+  theme_mode: string;
+
+  @Column({ name: 'theme_overrides', type: 'jsonb', default: () => "'{}'" })
+  theme_overrides: Record<string, string>;
+
   @Column({ name: 'app_name', type: 'varchar', length: 120 })
   app_name: string;
 

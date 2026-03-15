@@ -2,11 +2,16 @@ import { PlatformSetting } from './entities/platform-setting.entity';
 import { TenantSetting } from './entities/tenant-setting.entity';
 import {
   DEFAULT_BRANDING_SETTINGS,
+  DEFAULT_THEME_MODE,
+  DEFAULT_THEME_OVERRIDES,
   DEFAULT_THEME_SETTINGS,
+  THEME_MODE_VALUES,
 } from './tenant-settings.constants';
 import {
   TenantBrandingSettings,
   TenantSettingsResponse,
+  TenantThemeMode,
+  TenantThemeOverrides,
   TenantThemeSettings,
 } from './tenant-settings.types';
 
@@ -43,6 +48,29 @@ export function extractBrandingSettings(
   };
 }
 
+export function extractThemeMode(entity: SettingsEntity): TenantThemeMode {
+  const mode = entity.theme_mode;
+  if (mode && THEME_MODE_VALUES.includes(mode as TenantThemeMode)) {
+    return mode as TenantThemeMode;
+  }
+  return DEFAULT_THEME_MODE as TenantThemeMode;
+}
+
+export function extractThemeOverrides(
+  entity: SettingsEntity,
+): TenantThemeOverrides {
+  const input = entity.theme_overrides;
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return { ...DEFAULT_THEME_OVERRIDES };
+  }
+
+  const normalizedEntries = Object.entries(input).filter(
+    ([key, value]) => key.trim().length > 0 && typeof value === 'string',
+  );
+
+  return Object.fromEntries(normalizedEntries);
+}
+
 export function applyThemeSettings(
   entity: SettingsEntity,
   theme: Partial<TenantThemeSettings>,
@@ -70,6 +98,20 @@ export function applyThemeSettings(
   }
 }
 
+export function applyThemeMode(entity: SettingsEntity, mode: TenantThemeMode) {
+  entity.theme_mode = mode;
+}
+
+export function applyThemeOverrides(
+  entity: SettingsEntity,
+  overrides: TenantThemeOverrides,
+) {
+  const normalizedEntries = Object.entries(overrides ?? {}).filter(
+    ([key, value]) => key.trim().length > 0 && typeof value === 'string',
+  );
+  entity.theme_overrides = Object.fromEntries(normalizedEntries);
+}
+
 export function applyBrandingSettings(
   entity: SettingsEntity,
   branding: Partial<TenantBrandingSettings>,
@@ -86,6 +128,8 @@ export function applyBrandingSettings(
 
 export function applyDefaultSettings(entity: SettingsEntity) {
   applyThemeSettings(entity, DEFAULT_THEME_SETTINGS);
+  applyThemeMode(entity, DEFAULT_THEME_MODE as TenantThemeMode);
+  applyThemeOverrides(entity, DEFAULT_THEME_OVERRIDES);
   applyBrandingSettings(entity, DEFAULT_BRANDING_SETTINGS);
 }
 
@@ -113,6 +157,16 @@ export function ensureSettingsDefaults(entity: SettingsEntity) {
   if (!entity.text_tertiary_color) {
     entity.text_tertiary_color = DEFAULT_THEME_SETTINGS.textTertiary;
   }
+  if (!entity.theme_mode) {
+    entity.theme_mode = DEFAULT_THEME_MODE;
+  }
+  if (
+    !entity.theme_overrides ||
+    typeof entity.theme_overrides !== 'object' ||
+    Array.isArray(entity.theme_overrides)
+  ) {
+    entity.theme_overrides = { ...DEFAULT_THEME_OVERRIDES };
+  }
   if (!entity.app_name) entity.app_name = DEFAULT_BRANDING_SETTINGS.appName;
   if (!entity.window_title) {
     entity.window_title = DEFAULT_BRANDING_SETTINGS.windowTitle;
@@ -133,6 +187,8 @@ export function serializeSettings(
     tenant_id: 'tenant_id' in entity ? entity.tenant_id : null,
     scope: 'scope' in entity ? entity.scope : undefined,
     theme: extractThemeSettings(entity),
+    themeMode: extractThemeMode(entity),
+    themeOverrides: extractThemeOverrides(entity),
     branding: extractBrandingSettings(entity),
     logo_key: entity.logo_key,
     favicon_key: entity.favicon_key,

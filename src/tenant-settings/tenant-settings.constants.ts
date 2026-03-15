@@ -17,6 +17,12 @@ export const DEFAULT_THEME_SETTINGS: Record<string, string> = {
   textTertiary: '#6f7380',
 };
 
+export const DEFAULT_THEME_MODE = 'AUTO';
+
+export const DEFAULT_THEME_OVERRIDES: Record<string, string> = {};
+
+export const THEME_MODE_VALUES = ['AUTO', 'ADVANCED'] as const;
+
 export const DEFAULT_BRANDING_SETTINGS: Record<string, string> = {
   appName: 'wegox',
   windowTitle: 'Wegox Booking System',

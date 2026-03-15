@@ -6,26 +6,32 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditService } from 'src/audit/audit.service';
-import type { CurrentJwtUser } from 'src/auth/strategies/jwt.strategy';
+import type { CurrentJwtUser } from 'src/auth/types'; 
 import { Tenant } from 'src/tenant/entities/tenant.entity';
 import { TenantSetting } from './entities/tenant-setting.entity';
 import { PlatformSetting } from './entities/platform-setting.entity';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import {
   ALLOWED_IMAGE_MIME_TYPES,
+  DEFAULT_BRANDING_SETTINGS,
   PLATFORM_SETTINGS_SCOPE,
   TenantSettingsAssetType,
 } from './tenant-settings.constants';
 import {
   applyBrandingSettings,
   applyDefaultSettings,
+  applyThemeMode,
+  applyThemeOverrides,
   applyThemeSettings,
   ensureSettingsDefaults,
   serializeSettings,
 } from './tenant-settings.mapper';
 import { normalizeThemeSettings } from './tenant-theme.utils';
 import { S3StorageService } from './services/s3-storage.service';
-import { TenantSettingsResponse } from './tenant-settings.types';
+import {
+  PublicBusinessSettingsResponse,
+  TenantSettingsResponse,
+} from './tenant-settings.types';
 
 type UploadedAssetFile = {
   buffer: Buffer;
@@ -64,6 +70,14 @@ export class TenantSettingsService {
           ...dto.theme,
         }),
       );
+    }
+
+    if (dto.themeMode) {
+      applyThemeMode(settings, dto.themeMode);
+    }
+
+    if (dto.themeOverrides) {
+      applyThemeOverrides(settings, dto.themeOverrides);
     }
 
     if (dto.branding) {
@@ -162,6 +176,46 @@ export class TenantSettingsService {
     return serializeSettings(settings);
   }
 
+  async findPublicByBusinessSlug(
+    businessSlug: string,
+  ): Promise<PublicBusinessSettingsResponse> {
+    const normalizedSlug = businessSlug.trim().toLowerCase();
+    if (!normalizedSlug) {
+      throw new BadRequestException('Business slug is required');
+    }
+
+    const business = await this.tenantsRepository.findOne({
+      where: { slug: normalizedSlug },
+    });
+
+    if (!business || !business.is_active) {
+      throw new NotFoundException('Business not found');
+    }
+
+    const tenantSettings = await this.tenantSettingsRepository.findOne({
+      where: { tenant_id: business.id },
+    });
+
+    if (tenantSettings) {
+      ensureSettingsDefaults(tenantSettings);
+      return this.toPublicBusinessSettings(
+        { ...serializeSettings(tenantSettings), tenant_id: business.id },
+        business,
+      );
+    }
+
+    const platformSettings = await this.getOrCreatePlatformSettings();
+    const serialized = serializeSettings(platformSettings);
+
+    return this.toPublicBusinessSettings(
+      {
+        ...serialized,
+        tenant_id: business.id,
+      },
+      business,
+    );
+  }
+
   async updateMine(
     dto: UpdateTenantSettingsDto,
     currentUser: CurrentJwtUser,
@@ -188,6 +242,14 @@ export class TenantSettingsService {
           ...dto.theme,
         }),
       );
+    }
+
+    if (dto.themeMode) {
+      applyThemeMode(settings, dto.themeMode);
+    }
+
+    if (dto.themeOverrides) {
+      applyThemeOverrides(settings, dto.themeOverrides);
     }
 
     if (dto.branding) {
@@ -355,5 +417,38 @@ export class TenantSettingsService {
       default:
         throw new BadRequestException('Unsupported image MIME type');
     }
+  }
+
+  private toPublicBusinessSettings(
+    settings: TenantSettingsResponse,
+    business: Tenant,
+  ): PublicBusinessSettingsResponse {
+    const normalizedBusinessName = business.name.trim();
+    const branding = { ...settings.branding };
+
+    if (
+      !branding.appName?.trim() ||
+      branding.appName.trim().toLowerCase() ===
+        DEFAULT_BRANDING_SETTINGS.appName.toLowerCase()
+    ) {
+      branding.appName = normalizedBusinessName;
+    }
+
+    if (
+      !branding.windowTitle?.trim() ||
+      branding.windowTitle.trim() === DEFAULT_BRANDING_SETTINGS.windowTitle
+    ) {
+      branding.windowTitle = `${normalizedBusinessName} | Reserva online`;
+    }
+
+    return {
+      ...settings,
+      branding,
+      business: {
+        id: business.id,
+        name: business.name,
+        slug: business.slug,
+      },
+    };
   }
 }

@@ -4,29 +4,8 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User, UserRole } from 'src/users/entities/user.entity';
-
-export type JwtPayload = {
-  sub: string;
-  role: UserRole;
-  tenant_id: string | null;
-};
-
-export type CurrentJwtUser = {
-  sub: string;
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  tenant_id: string | null;
-  is_active: boolean;
-  tenant: {
-    id: string;
-    name: string;
-    slug: string;
-    is_active: boolean;
-  } | null;
-};
+import { User } from 'src/users/entities/user.entity';
+import { CurrentJwtUser, JwtPayload } from '../types';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {

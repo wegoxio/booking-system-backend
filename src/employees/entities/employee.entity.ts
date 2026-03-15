@@ -31,6 +31,12 @@ export class Employee extends BaseEntity {
   @Column({ type: 'varchar', length: 30, nullable: true })
   phone: string | null;
 
+  @Column({ type: 'varchar', length: 64, default: 'UTC' })
+  schedule_timezone: string;
+
+  @Column({ type: 'int', default: 15 })
+  slot_interval_minutes: number;
+
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
 

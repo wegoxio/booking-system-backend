@@ -10,6 +10,10 @@ export type TenantThemeSettings = {
   textTertiary: string;
 };
 
+export type TenantThemeMode = 'AUTO' | 'ADVANCED';
+
+export type TenantThemeOverrides = Record<string, string>;
+
 export type TenantBrandingSettings = {
   appName: string;
   windowTitle: string;
@@ -24,7 +28,17 @@ export type TenantSettingsResponse = {
   tenant_id?: string | null;
   scope?: string;
   theme: TenantThemeSettings;
+  themeMode: TenantThemeMode;
+  themeOverrides: TenantThemeOverrides;
   branding: TenantBrandingSettings;
   logo_key: string | null;
   favicon_key: string | null;
+};
+
+export type PublicBusinessSettingsResponse = TenantSettingsResponse & {
+  business: {
+    id: string;
+    name: string;
+    slug: string;
+  };
 };

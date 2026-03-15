@@ -9,11 +9,13 @@ import { AuthService } from './auth.service';
 import { User } from 'src/users/entities/user.entity';
 import { Tenant } from 'src/tenant/entities/tenant.entity';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { AuditModule } from 'src/audit/audit.module';
 
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Tenant]),
+    AuditModule,
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
