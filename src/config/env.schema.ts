@@ -108,6 +108,8 @@ export const envSchema = z.object({
   AUTH_MAX_FAILED_ATTEMPTS: z.coerce.number().default(5),
   AUTH_LOCK_MINUTES: z.coerce.number().default(15),
   AUTH_FAILED_RESET_MINUTES: z.coerce.number().default(30),
+  AUTH_TENANT_ADMIN_INVITE_EXPIRES_HOURS: z.coerce.number().default(72),
+  AUTH_PASSWORD_RESET_EXPIRES_MINUTES: z.coerce.number().default(60),
 
   // Rate limit (Throttler)
   RATE_LIMIT_TTL_MS: z.coerce.number().default(60000),

@@ -71,6 +71,15 @@ export class Booking extends TenantBaseEntity {
   @Column({ type: 'varchar', length: 30, nullable: true })
   customer_phone: string | null;
 
+  @Column({ type: 'varchar', length: 2, nullable: true })
+  customer_phone_country_iso2: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  customer_phone_national_number: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  customer_phone_e164: string | null;
+
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 

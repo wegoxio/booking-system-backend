@@ -28,6 +28,7 @@ type NormalizedAuthRequestContext = {
 
 const REFRESH_TOKEN_MIN_SECONDS = 60;
 const DEFAULT_REFRESH_TOKEN_EXP_SECONDS = 60 * 60 * 24 * 30;
+const ROTATED_REFRESH_REPLAY_GRACE_MS = 10_000;
 type JwtExpiresIn = NonNullable<JwtSignOptions['expiresIn']>;
 
 @Injectable()
@@ -108,6 +109,38 @@ export class AuthService {
         user_agent: normalizedContext.user_agent,
       });
       throw new ForbiddenException('Credenciales Invalidas.');
+    }
+
+    if (!user.password_hash) {
+      await this.auditService.log({
+        actor_user_id: user.id,
+        tenant_id: user.tenant_id ?? null,
+        action: 'AUTH_LOGIN_BLOCKED',
+        entity: 'auth',
+        entity_id: user.id,
+        metadata: {
+          reason: 'PASSWORD_NOT_SET',
+        },
+        ip: normalizedContext.ip,
+        user_agent: normalizedContext.user_agent,
+      });
+      throw new UnauthorizedException('Credenciales Invalidas.');
+    }
+
+    if (user.role === 'TENANT_ADMIN' && !user.email_verified_at) {
+      await this.auditService.log({
+        actor_user_id: user.id,
+        tenant_id: user.tenant_id ?? null,
+        action: 'AUTH_LOGIN_BLOCKED',
+        entity: 'auth',
+        entity_id: user.id,
+        metadata: {
+          reason: 'EMAIL_NOT_VERIFIED',
+        },
+        ip: normalizedContext.ip,
+        user_agent: normalizedContext.user_agent,
+      });
+      throw new UnauthorizedException('Credenciales Invalidas.');
     }
 
     const passwordMatches = await argon2.verify(user.password_hash, dto.password);
@@ -213,7 +246,41 @@ export class AuthService {
       }
 
       if (currentSession.revoked_at) {
-        await this.revokeAllActiveSessionsForUser(manager, user.id, 'REUSE_DETECTED');
+        const isBenignRotatedReplay = this.isBenignRotatedRefreshReplay(
+          currentSession,
+          normalizedContext,
+          now,
+        );
+
+        if (isBenignRotatedReplay) {
+          const { tokens, session } = await this.createSessionTokens(
+            user,
+            normalizedContext,
+            manager,
+          );
+
+          await this.auditService.log({
+            actor_user_id: user.id,
+            tenant_id: user.tenant_id ?? null,
+            action: 'AUTH_REFRESH_DUPLICATE_RECOVERED',
+            entity: 'auth',
+            entity_id: user.id,
+            metadata: {
+              replayed_session_id: currentSession.id,
+              recovered_session_id: session.id,
+              reason: currentSession.revocation_reason ?? 'ROTATED',
+            },
+            ip: normalizedContext.ip,
+            user_agent: normalizedContext.user_agent,
+          });
+
+          return tokens;
+        }
+
+        if (currentSession.revocation_reason === 'ROTATED') {
+          await this.revokeAllActiveSessionsForUser(manager, user.id, 'REUSE_DETECTED');
+        }
+
         await this.auditService.log({
           actor_user_id: user.id,
           tenant_id: user.tenant_id ?? null,
@@ -222,7 +289,7 @@ export class AuthService {
           entity_id: user.id,
           metadata: {
             session_id: currentSession.id,
-            reason: 'SESSION_ALREADY_REVOKED',
+            reason: currentSession.revocation_reason ?? 'SESSION_ALREADY_REVOKED',
           },
           ip: normalizedContext.ip,
           user_agent: normalizedContext.user_agent,
@@ -386,7 +453,7 @@ export class AuthService {
   ): Promise<{ success: true; revoked_sessions: number }> {
     const normalizedContext = this.normalizeContext(context);
 
-    return this.usersRepo.manager.transaction(async (manager) => {
+    const result = await this.usersRepo.manager.transaction(async (manager) => {
       const usersRepo = manager.getRepository(User);
       const lockedUser = await usersRepo.findOne({
         where: { id: currentUser.id },
@@ -406,25 +473,31 @@ export class AuthService {
         'LOGOUT_ALL',
       );
 
-      await this.auditService.log({
-        actor_user_id: currentUser.id,
-        tenant_id: currentUser.tenant_id ?? null,
-        action: 'AUTH_LOGOUT_ALL',
-        entity: 'auth',
-        entity_id: currentUser.id,
-        metadata: {
-          revoked_sessions: revokedCount,
-          new_token_version: lockedUser.token_version,
-        },
-        ip: normalizedContext.ip,
-        user_agent: normalizedContext.user_agent,
-      });
-
       return {
         success: true,
         revoked_sessions: revokedCount,
+        new_token_version: lockedUser.token_version,
       };
     });
+
+    await this.auditService.log({
+      actor_user_id: currentUser.id,
+      tenant_id: currentUser.tenant_id ?? null,
+      action: 'AUTH_LOGOUT_ALL',
+      entity: 'auth',
+      entity_id: currentUser.id,
+      metadata: {
+        revoked_sessions: result.revoked_sessions,
+        new_token_version: result.new_token_version,
+      },
+      ip: normalizedContext.ip,
+      user_agent: normalizedContext.user_agent,
+    });
+
+    return {
+      success: true,
+      revoked_sessions: result.revoked_sessions,
+    };
   }
 
   private verifyRefreshToken(token: string): RefreshJwtPayload {
@@ -465,6 +538,10 @@ export class AuthService {
 
       if (!user.tenant.is_active) {
         throw new ForbiddenException('Tenant disabled');
+      }
+
+      if (!user.email_verified_at) {
+        throw new ForbiddenException('Email not verified');
       }
     }
 
@@ -510,7 +587,7 @@ export class AuthService {
   ): Promise<void> {
     const now = new Date();
 
-    await this.usersRepo.manager.transaction(async (manager) => {
+    const result = await this.usersRepo.manager.transaction(async (manager) => {
       const usersRepo = manager.getRepository(User);
       const lockedUser = await usersRepo.findOne({
         where: { id: userId },
@@ -536,38 +613,50 @@ export class AuthService {
 
       await usersRepo.save(lockedUser);
 
-      await this.auditService.log({
+      return {
         actor_user_id: lockedUser.id,
         tenant_id: lockedUser.tenant_id ?? null,
-        action: 'AUTH_LOGIN_FAILED',
+        attempts,
+        accountLocked,
+        locked_until: lockedUser.locked_until?.toISOString() ?? null,
+      };
+    });
+
+    if (!result) {
+      return;
+    }
+
+    await this.auditService.log({
+      actor_user_id: result.actor_user_id,
+      tenant_id: result.tenant_id,
+      action: 'AUTH_LOGIN_FAILED',
+      entity: 'auth',
+      entity_id: result.actor_user_id,
+      metadata: {
+        failed_attempts: result.attempts,
+        max_failed_attempts: this.maxFailedAttempts,
+        locked_until: result.locked_until,
+      },
+      ip: context.ip,
+      user_agent: context.user_agent,
+    });
+
+    if (result.accountLocked) {
+      await this.auditService.log({
+        actor_user_id: result.actor_user_id,
+        tenant_id: result.tenant_id,
+        action: 'AUTH_ACCOUNT_LOCKED',
         entity: 'auth',
-        entity_id: lockedUser.id,
+        entity_id: result.actor_user_id,
         metadata: {
-          failed_attempts: attempts,
-          max_failed_attempts: this.maxFailedAttempts,
-          locked_until: lockedUser.locked_until?.toISOString() ?? null,
+          failed_attempts: result.attempts,
+          lock_minutes: this.lockMinutes,
+          locked_until: result.locked_until,
         },
         ip: context.ip,
         user_agent: context.user_agent,
       });
-
-      if (accountLocked) {
-        await this.auditService.log({
-          actor_user_id: lockedUser.id,
-          tenant_id: lockedUser.tenant_id ?? null,
-          action: 'AUTH_ACCOUNT_LOCKED',
-          entity: 'auth',
-          entity_id: lockedUser.id,
-          metadata: {
-            failed_attempts: attempts,
-            lock_minutes: this.lockMinutes,
-            locked_until: lockedUser.locked_until?.toISOString() ?? null,
-          },
-          ip: context.ip,
-          user_agent: context.user_agent,
-        });
-      }
-    });
+    }
   }
 
   private buildAccessPayload(user: User, sessionId: string): JwtPayload {
@@ -667,6 +756,27 @@ export class AuthService {
     );
 
     return result.affected ?? 0;
+  }
+
+  private isBenignRotatedRefreshReplay(
+    session: AuthSession,
+    context: NormalizedAuthRequestContext,
+    now: Date,
+  ): boolean {
+    if (
+      !session.revoked_at ||
+      session.revocation_reason !== 'ROTATED' ||
+      !session.replaced_by_session_id
+    ) {
+      return false;
+    }
+
+    const revokedAgoMs = now.getTime() - session.revoked_at.getTime();
+    if (revokedAgoMs < 0 || revokedAgoMs > ROTATED_REFRESH_REPLAY_GRACE_MS) {
+      return false;
+    }
+
+    return session.ip === context.ip && session.user_agent === context.user_agent;
   }
 
   private normalizeContext(context?: AuthRequestContext): NormalizedAuthRequestContext {

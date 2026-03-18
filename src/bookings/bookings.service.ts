@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { AuditService } from 'src/audit/audit.service';
+import { normalizePhoneInput } from 'src/common/phone/phone.util';
 import { Employee } from 'src/employees/entities/employee.entity';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { Service } from 'src/services/entity/service.entity';
@@ -101,11 +102,21 @@ export class BookingsService {
       },
     });
 
+    const publicEmployeeWorkingDays = await this.buildPublicEmployeeWorkingDaysMap(
+      tenant.id,
+      services.flatMap((service) => service.employees.map((employee) => employee.id)),
+    );
+
     return services
       .map((service) => {
         const eligibleEmployees = service.employees
           .filter((employee) => employee.is_active && employee.tenant_id === tenant.id)
-          .map((employee) => this.toPublicBookingEmployee(employee));
+          .map((employee) =>
+            this.toPublicBookingEmployee(
+              employee,
+              publicEmployeeWorkingDays.get(employee.id),
+            ),
+          );
 
         if (eligibleEmployees.length === 0) {
           return null;
@@ -134,8 +145,17 @@ export class BookingsService {
       tenant.id,
       query.service_ids,
     );
+    const publicEmployeeWorkingDays = await this.buildPublicEmployeeWorkingDaysMap(
+      tenant.id,
+      employees.map((employee) => employee.id),
+    );
 
-    return employees.map((employee) => this.toPublicBookingEmployee(employee));
+    return employees.map((employee) =>
+      this.toPublicBookingEmployee(
+        employee,
+        publicEmployeeWorkingDays.get(employee.id),
+      ),
+    );
   }
 
   async setEmployeeSchedule(
@@ -620,6 +640,12 @@ export class BookingsService {
 
     const servicesById = new Map(selectedServices.map((service) => [service.id, service]));
     const orderedServices = serviceIds.map((serviceId) => servicesById.get(serviceId)!);
+    const normalizedCustomerPhone = normalizePhoneInput({
+      countryIso2: dto.customer_phone_country_iso2,
+      nationalNumber: dto.customer_phone_national_number,
+      legacyPhone: dto.customer_phone,
+      fieldLabel: 'customer phone',
+    });
 
     const booking = await this.dataSource.transaction(async (manager) => {
       const employeeLocked = await manager
@@ -659,7 +685,10 @@ export class BookingsService {
         currency,
         customer_name: dto.customer_name.trim(),
         customer_email: dto.customer_email?.trim().toLowerCase() ?? null,
-        customer_phone: dto.customer_phone?.trim() ?? null,
+        customer_phone: normalizedCustomerPhone.display,
+        customer_phone_country_iso2: normalizedCustomerPhone.countryIso2,
+        customer_phone_national_number: normalizedCustomerPhone.nationalNumber,
+        customer_phone_e164: normalizedCustomerPhone.e164,
         notes: dto.notes?.trim() ?? null,
         source: bookingSource,
         created_by_user_id: actorUserId,
@@ -1113,11 +1142,57 @@ export class BookingsService {
     return (BOOKING_CANCELLATION_STATUSES as readonly string[]).includes(status);
   }
 
-  private toPublicBookingEmployee(employee: Employee): PublicBookingEmployee {
+  private toPublicBookingEmployee(
+    employee: Employee,
+    workingDays?: number[],
+  ): PublicBookingEmployee {
     return {
       id: employee.id,
       name: employee.name,
+      working_days: [...new Set(workingDays ?? [])].sort((a, b) => a - b),
     };
+  }
+
+  private async buildPublicEmployeeWorkingDaysMap(
+    tenantId: string,
+    employeeIds: string[],
+  ): Promise<Map<string, number[]>> {
+    const uniqueEmployeeIds = this.uniqueIds(employeeIds);
+    const result = new Map<string, number[]>();
+
+    if (uniqueEmployeeIds.length === 0) {
+      return result;
+    }
+
+    const rules = await this.scheduleRulesRepository.find({
+      where: {
+        tenant_id: tenantId,
+        employee_id: In(uniqueEmployeeIds),
+        is_active: true,
+      },
+      select: {
+        employee_id: true,
+        day_of_week: true,
+      },
+      order: {
+        employee_id: 'ASC',
+        day_of_week: 'ASC',
+      },
+    });
+
+    for (const employeeId of uniqueEmployeeIds) {
+      result.set(employeeId, []);
+    }
+
+    for (const rule of rules) {
+      const existingDays = result.get(rule.employee_id) ?? [];
+      if (!existingDays.includes(rule.day_of_week)) {
+        existingDays.push(rule.day_of_week);
+        result.set(rule.employee_id, existingDays);
+      }
+    }
+
+    return result;
   }
 
   private toPublicBookingConfirmation(booking: Booking): PublicBookingConfirmation {

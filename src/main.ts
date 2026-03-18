@@ -22,7 +22,7 @@ async function bootstrap() {
   const corsAllowCredentials = configService.get<boolean>('CORS_ALLOW_CREDENTIALS', true);
   const corsAllowedHeaders = configService.get<string[]>(
     'CORS_ALLOWED_HEADERS',
-    ['Content-Type', 'Authorization'],
+    ['Content-Type', 'Authorization', 'X-CSRF-Token'],
   );
   const corsAllowedMethods = configService.get<string[]>(
     'CORS_ALLOWED_METHODS',

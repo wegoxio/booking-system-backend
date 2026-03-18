@@ -2,7 +2,6 @@ import {
   IsEmail,
   IsNotEmpty,
   IsString,
-  IsStrongPassword,
   IsUUID,
   Length,
 } from 'class-validator';
@@ -16,9 +15,6 @@ export class CreateTenantAdminDto {
   @IsEmail()
   @Length(5, 255)
   email: string;
-
-  @IsStrongPassword()
-  password: string;
 
   @IsUUID()
   tenant_id: string;

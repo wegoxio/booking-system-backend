@@ -9,6 +9,7 @@ import {
   IsString,
   IsUUID,
   Length,
+  Matches,
 } from 'class-validator';
 import { BOOKING_SOURCES } from '../bookings.constants';
 
@@ -38,6 +39,17 @@ export class CreateBookingDto {
   @IsString()
   @Length(3, 30)
   customer_phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(2, 2)
+  @Matches(/^[A-Za-z]{2}$/)
+  customer_phone_country_iso2?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Length(4, 20)
+  customer_phone_national_number?: string | null;
 
   @IsOptional()
   @IsString()

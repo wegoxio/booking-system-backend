@@ -7,6 +7,10 @@ import { Tenant } from 'src/tenant/entities/tenant.entity';
 import { User } from 'src/users/entities/user.entity';
 import { Repository } from 'typeorm';
 import { buildBookingLifecycleEmail } from './templates/booking-email.template';
+import {
+  buildPasswordResetEmail,
+  buildTenantAdminInvitationEmail,
+} from './templates/account-access-email.template';
 import type {
   BookingNotificationAudience,
   BookingNotificationBusinessContext,
@@ -198,6 +202,62 @@ export class NotificationsService {
     }
   }
 
+  async sendTenantAdminInvitationEmail(input: {
+    email: string;
+    name: string;
+    tenantName: string;
+    setupUrl: string;
+    expiresAt: Date;
+    idempotencyKey: string;
+  }): Promise<void> {
+    const rendered = buildTenantAdminInvitationEmail({
+      tenantName: input.tenantName,
+      setupUrl: input.setupUrl,
+      expiresAt: input.expiresAt,
+    });
+
+    await this.sendTransactionalAccessEmail({
+      to: {
+        email: input.email,
+        name: input.name,
+      },
+      fromName: input.tenantName,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      idempotencyKey: input.idempotencyKey,
+      fallbackUrl: input.setupUrl,
+    });
+  }
+
+  async sendPasswordResetEmail(input: {
+    email: string;
+    name: string;
+    businessName: string;
+    resetUrl: string;
+    expiresAt: Date;
+    idempotencyKey: string;
+  }): Promise<void> {
+    const rendered = buildPasswordResetEmail({
+      businessName: input.businessName,
+      resetUrl: input.resetUrl,
+      expiresAt: input.expiresAt,
+    });
+
+    await this.sendTransactionalAccessEmail({
+      to: {
+        email: input.email,
+        name: input.name,
+      },
+      fromName: input.businessName,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      idempotencyKey: input.idempotencyKey,
+      fallbackUrl: input.resetUrl,
+    });
+  }
+
   private buildIdempotencyKey(
     event: BookingNotificationEvent,
     bookingId: string,
@@ -235,5 +295,39 @@ export class NotificationsService {
     }
 
     return appPublicUrl.replace(/\/+$/, '');
+  }
+
+  private async sendTransactionalAccessEmail(input: {
+    to: MailRecipient;
+    fromName: string;
+    subject: string;
+    html: string;
+    text: string;
+    idempotencyKey: string;
+    fallbackUrl: string;
+  }): Promise<void> {
+    if (!this.configService.get<boolean>('MAIL_ENABLED', false)) {
+      const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+      if (nodeEnv === 'development') {
+        this.logger.warn(
+          `MAIL_ENABLED=false. Link temporal para ${input.to.email}: ${input.fallbackUrl}`,
+        );
+        return;
+      }
+
+      throw new Error('MAIL_ENABLED=false');
+    }
+
+    const replyTo = this.configService.get<string>('MAIL_REPLY_TO_EMAIL') ?? null;
+
+    await this.emailProvider.send({
+      to: input.to,
+      fromName: input.fromName,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+      replyTo,
+      idempotencyKey: input.idempotencyKey,
+    });
   }
 }

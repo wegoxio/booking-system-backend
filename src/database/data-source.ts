@@ -14,6 +14,7 @@ import { EmployeeScheduleRule } from 'src/bookings/entities/employee-schedule-ru
 import { EmployeeScheduleBreak } from 'src/bookings/entities/employee-schedule-break.entity';
 import { EmployeeTimeOff } from 'src/bookings/entities/employee-time-off.entity';
 import { AuthSession } from 'src/auth/entities/auth-session.entity';
+import { UserAccessToken } from 'src/auth/entities/user-access-token.entity';
 
 function envBool(name: string, defaultValue = false): boolean {
     const v = process.env[name];
@@ -57,6 +58,7 @@ export const AppDataSource = new DataSource({
         EmployeeScheduleBreak,
         EmployeeTimeOff,
         AuthSession,
+        UserAccessToken,
         TenantSetting,
         PlatformSetting,
     ],
