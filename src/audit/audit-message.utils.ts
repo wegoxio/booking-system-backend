@@ -40,6 +40,16 @@ function buildByAction(action: string, metadata?: Record<string, any> | null): s
       return 'Sesion cerrada.';
     case 'AUTH_LOGOUT_ALL':
       return 'Todas las sesiones fueron cerradas.';
+    case 'AUTH_EMAIL_VERIFIED':
+      return 'Correo electronico verificado correctamente.';
+    case 'AUTH_ACCESS_SETUP_LINK_SENT':
+      return 'Se envio un enlace para activar el acceso.';
+    case 'AUTH_PASSWORD_RESET_REQUESTED':
+      return 'Se solicito un restablecimiento de contrasena.';
+    case 'AUTH_PASSWORD_RESET_COMPLETED':
+      return 'La contrasena fue restablecida.';
+    case 'AUTH_TENANT_ADMIN_ONBOARDING_COMPLETED':
+      return 'Onboarding de tenant admin completado.';
 
     case 'TENANT_CREATED':
       return `Tenant "${metadata?.name ?? 'N/A'}" creado.`;
@@ -50,6 +60,8 @@ function buildByAction(action: string, metadata?: Record<string, any> | null): s
 
     case 'TENANT_ADMIN_CREATED':
       return `Tenant admin "${metadata?.name ?? 'N/A'}" creado.`;
+    case 'TENANT_ADMIN_INVITATION_SENT':
+      return `Invitacion enviada a "${metadata?.email ?? 'N/A'}".`;
     case 'TENANT_ADMIN_UPDATED':
       return `Tenant admin actualizado (${listUpdatedFields(metadata)}).`;
     case 'TENANT_ADMIN_DELETED':

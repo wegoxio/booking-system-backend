@@ -1,6 +1,7 @@
 export type PublicBookingEmployee = {
   id: string;
   name: string;
+  working_days: number[];
 };
 
 export type PublicBookingService = {

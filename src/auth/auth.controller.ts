@@ -18,6 +18,12 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthCookieService } from './auth-cookie.service';
 import { TurnstileService } from 'src/captcha/turnstile.service';
 import { ConfigService } from '@nestjs/config';
+import { AccountAccessService } from './account-access.service';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
+import { ResolvePasswordResetDto } from './dto/resolve-password-reset.dto';
+import { CompletePasswordResetDto } from './dto/complete-password-reset.dto';
+import { ResolveTenantAdminOnboardingDto } from './dto/resolve-tenant-admin-onboarding.dto';
+import { CompleteTenantAdminOnboardingDto } from './dto/complete-tenant-admin-onboarding.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -26,6 +32,7 @@ export class AuthController {
         private readonly authCookieService: AuthCookieService,
         private readonly turnstileService: TurnstileService,
         private readonly configService: ConfigService,
+        private readonly accountAccessService: AccountAccessService,
     ){}
 
     @Post('login')
@@ -127,5 +134,68 @@ export class AuthController {
     @Get('me')
     me(@CurrentUser() user: CurrentJwtUser){
         return user;
+    }
+
+    @Post('password/forgot')
+    @Throttle({ default: { limit: 5, ttl: 60_000 } })
+    forgotPassword(
+      @Body() dto: RequestPasswordResetDto,
+      @Req() req: Request,
+    ) {
+      return this.accountAccessService.requestPasswordRecovery(dto.email, {
+        ip: req.ip ?? null,
+        user_agent: req.headers['user-agent'] ?? null,
+      });
+    }
+
+    @Post('password/reset/resolve')
+    @Throttle({ default: { limit: 20, ttl: 60_000 } })
+    resolvePasswordReset(@Body() dto: ResolvePasswordResetDto) {
+      return this.accountAccessService.resolvePasswordReset(dto.token);
+    }
+
+    @Post('password/reset/complete')
+    @Throttle({ default: { limit: 8, ttl: 60_000 } })
+    completePasswordReset(
+      @Body() dto: CompletePasswordResetDto,
+      @Req() req: Request,
+    ) {
+      return this.accountAccessService.completePasswordReset(
+        {
+          token: dto.token,
+          password: dto.password,
+        },
+        {
+          ip: req.ip ?? null,
+          user_agent: req.headers['user-agent'] ?? null,
+        },
+      );
+    }
+
+    @Post('tenant-admin/onboarding/resolve')
+    @Throttle({ default: { limit: 20, ttl: 60_000 } })
+    resolveTenantAdminOnboarding(
+      @Body() dto: ResolveTenantAdminOnboardingDto,
+    ) {
+      return this.accountAccessService.resolveTenantAdminOnboarding(dto.token);
+    }
+
+    @Post('tenant-admin/onboarding/complete')
+    @Throttle({ default: { limit: 8, ttl: 60_000 } })
+    completeTenantAdminOnboarding(
+      @Body() dto: CompleteTenantAdminOnboardingDto,
+      @Req() req: Request,
+    ) {
+      return this.accountAccessService.completeTenantAdminOnboarding(
+        {
+          token: dto.token,
+          name: dto.name,
+          password: dto.password,
+        },
+        {
+          ip: req.ip ?? null,
+          user_agent: req.headers['user-agent'] ?? null,
+        },
+      );
     }
 }

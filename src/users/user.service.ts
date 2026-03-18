@@ -7,11 +7,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
 import { Tenant } from 'src/tenant/entities/tenant.entity';
-import * as argon2 from 'argon2';
 import { CreateTenantAdminDto } from './dto/create-tenant-admin.dto';
 import { UpdateTenantAdminDto } from './dto/update-tenant-admin.dto';
 import { AuditService } from 'src/audit/audit.service';
 import { CurrentJwtUser } from 'src/auth/types';
+import { AccountAccessService } from 'src/auth/account-access.service';
 
 type TenantAdminResponse = {
   id: string;
@@ -22,6 +22,10 @@ type TenantAdminResponse = {
   role: 'TENANT_ADMIN';
   tenant_id: string;
   is_active: boolean;
+  invited_at: Date | null;
+  email_verified_at: Date | null;
+  onboarding_completed_at: Date | null;
+  access_state: 'INVITED' | 'PENDING_SETUP' | 'ACTIVE';
   tenant: {
     id: string;
     name: string;
@@ -36,6 +40,7 @@ export class UserService {
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
     @InjectRepository(Tenant) private readonly tenantRepo: Repository<Tenant>,
     private readonly auditService: AuditService,
+    private readonly accountAccessService: AccountAccessService,
   ) {}
 
   async findTenantAdmins(): Promise<TenantAdminResponse[]> {
@@ -65,16 +70,26 @@ export class UserService {
 
     await this.ensureTenantExists(dto.tenant_id);
 
-    const password_hash = await argon2.hash(dto.password);
     const newTenantAdmin = this.usersRepo.create({
       name: dto.name.trim(),
       email,
-      password_hash,
+      password_hash: null,
       role: 'TENANT_ADMIN',
       tenant_id: dto.tenant_id,
+      invited_at: new Date(),
+      email_verified_at: null,
+      onboarding_completed_at: null,
     });
 
     const created = await this.usersRepo.save(newTenantAdmin);
+
+    try {
+      await this.accountAccessService.issueTenantAdminInvitation(created, currentUser);
+    } catch (error) {
+      await this.usersRepo.delete(created.id);
+      throw error;
+    }
+
     const tenantAdmin = await this.findTenantAdminEntityById(created.id);
 
     await this.auditService.log({
@@ -87,6 +102,7 @@ export class UserService {
         name: tenantAdmin.name,
         email: tenantAdmin.email,
         tenant_id: tenantAdmin.tenant_id,
+        access_state: this.resolveAccessState(tenantAdmin),
       },
     });
 
@@ -112,10 +128,6 @@ export class UserService {
 
     if (dto.name !== undefined) {
       tenantAdmin.name = dto.name.trim();
-    }
-
-    if (dto.password !== undefined) {
-      tenantAdmin.password_hash = await argon2.hash(dto.password);
     }
 
     if (dto.tenant_id !== undefined) {
@@ -202,6 +214,10 @@ export class UserService {
       role: 'TENANT_ADMIN',
       tenant_id: user.tenant_id,
       is_active: user.is_active,
+      invited_at: user.invited_at,
+      email_verified_at: user.email_verified_at,
+      onboarding_completed_at: user.onboarding_completed_at,
+      access_state: this.resolveAccessState(user),
       tenant: user.tenant
         ? {
             id: user.tenant.id,
@@ -211,5 +227,19 @@ export class UserService {
           }
         : null,
     };
+  }
+
+  private resolveAccessState(
+    user: User,
+  ): 'INVITED' | 'PENDING_SETUP' | 'ACTIVE' {
+    if (!user.email_verified_at) {
+      return 'INVITED';
+    }
+
+    if (!user.password_hash || !user.onboarding_completed_at) {
+      return 'PENDING_SETUP';
+    }
+
+    return 'ACTIVE';
   }
 }

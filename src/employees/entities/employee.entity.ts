@@ -31,6 +31,15 @@ export class Employee extends BaseEntity {
   @Column({ type: 'varchar', length: 30, nullable: true })
   phone: string | null;
 
+  @Column({ type: 'varchar', length: 2, nullable: true })
+  phone_country_iso2: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  phone_national_number: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  phone_e164: string | null;
+
   @Column({ type: 'varchar', length: 64, default: 'UTC' })
   schedule_timezone: string;
 

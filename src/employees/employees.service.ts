@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditService } from 'src/audit/audit.service';
+import { normalizePhoneInput } from 'src/common/phone/phone.util';
 import { Employee } from './entities/employee.entity';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -39,11 +40,20 @@ export class EmployeesService {
       throw new ConflictException('An employee with this email already exists');
     }
 
+    const normalizedPhone = normalizePhoneInput({
+      countryIso2: dto.phone_country_iso2,
+      nationalNumber: dto.phone_national_number,
+      legacyPhone: dto.phone,
+    });
+
     const employee = this.employeesRepository.create({
       tenant_id: currentUser.tenant_id,
       name: dto.name.trim(),
       email: normalizedEmail,
-      phone: dto.phone?.trim() ?? null,
+      phone: normalizedPhone.display,
+      phone_country_iso2: normalizedPhone.countryIso2,
+      phone_national_number: normalizedPhone.nationalNumber,
+      phone_e164: normalizedPhone.e164,
     });
 
     const saved = await this.employeesRepository.save(employee);
@@ -114,8 +124,21 @@ export class EmployeesService {
       employee.name = dto.name.trim();
     }
 
-    if (dto.phone !== undefined) {
-      employee.phone = dto.phone?.trim() || null;
+    if (
+      dto.phone !== undefined ||
+      dto.phone_country_iso2 !== undefined ||
+      dto.phone_national_number !== undefined
+    ) {
+      const normalizedPhone = normalizePhoneInput({
+        countryIso2: dto.phone_country_iso2,
+        nationalNumber: dto.phone_national_number,
+        legacyPhone: dto.phone,
+      });
+
+      employee.phone = normalizedPhone.display;
+      employee.phone_country_iso2 = normalizedPhone.countryIso2;
+      employee.phone_national_number = normalizedPhone.nationalNumber;
+      employee.phone_e164 = normalizedPhone.e164;
     }
 
     if (dto.is_active !== undefined) {

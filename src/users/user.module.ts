@@ -5,11 +5,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { Tenant } from 'src/tenant/entities/tenant.entity';
 import { AuditModule } from 'src/audit/audit.module';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Tenant]),
     AuditModule,
+    AuthModule,
   ],
   controllers: [UsersController],
   providers: [UserService],

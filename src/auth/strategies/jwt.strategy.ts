@@ -35,7 +35,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     if (
       user.role === 'TENANT_ADMIN' &&
-      (!user.tenant_id || !user.tenant || !user.tenant.is_active)
+      (!user.tenant_id || !user.tenant || !user.tenant.is_active || !user.email_verified_at)
     ) {
       throw new UnauthorizedException('Invalid tenant context');
     }

@@ -14,8 +14,8 @@ export class User extends BaseEntity {
   @Column()
   email: string;
 
-  @Column()
-  password_hash: string;
+  @Column({ type: 'varchar', nullable: true })
+  password_hash: string | null;
 
   @Column({
     type: 'varchar'
@@ -31,6 +31,15 @@ export class User extends BaseEntity {
 
   @Column({ default: true })
   is_active: boolean;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  email_verified_at: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  invited_at: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  onboarding_completed_at: Date | null;
 
   @Column({ type: 'integer', default: 0 })
   token_version: number;

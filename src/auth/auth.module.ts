@@ -12,6 +12,9 @@ import { AuditModule } from 'src/audit/audit.module';
 import { AuthSession } from './entities/auth-session.entity';
 import { AuthCookieService } from './auth-cookie.service';
 import { CaptchaModule } from 'src/captcha/captcha.module';
+import { UserAccessToken } from './entities/user-access-token.entity';
+import { NotificationsModule } from 'src/notifications/notifications.module';
+import { AccountAccessService } from './account-access.service';
 
 type JwtExpiresIn = NonNullable<JwtSignOptions['expiresIn']>;
 
@@ -28,9 +31,10 @@ function toJwtExpiresIn(value: string | undefined, fallback: JwtExpiresIn): JwtE
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, AuthSession]),
+    TypeOrmModule.forFeature([User, AuthSession, UserAccessToken]),
     AuditModule,
     CaptchaModule,
+    NotificationsModule,
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -49,6 +53,7 @@ function toJwtExpiresIn(value: string | undefined, fallback: JwtExpiresIn): JwtE
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthCookieService, JwtStrategy],
+  providers: [AuthService, AuthCookieService, JwtStrategy, AccountAccessService],
+  exports: [AccountAccessService],
 })
 export class AuthModule {}
