@@ -22,5 +22,5 @@ export const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, readonly BookingS
   NO_SHOW: [],
 };
 
-export const BOOKING_SOURCES = ['ADMIN', 'WEB', 'API'] as const;
+export const BOOKING_SOURCES = ['ADMIN', 'WEB', 'API', 'MANUAL'] as const;
 export type BookingSource = (typeof BOOKING_SOURCES)[number];

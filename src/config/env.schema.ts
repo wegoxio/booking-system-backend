@@ -138,6 +138,19 @@ export const envSchema = z.object({
   MAIL_ASSET_BASE_URL: z.string().url().optional(),
   MAIL_RESEND_MIN_INTERVAL_MS: z.coerce.number().default(650),
   RESEND_API_KEY: z.string().optional(),
+
+  // Booking reminders
+  REMINDERS_ENABLED: z.coerce.boolean().default(false),
+  REMINDERS_TIMEZONE: z.string().min(1).default('America/Caracas'),
+  REMINDERS_DISPATCH_HOUR: z.coerce.number().min(0).max(23).default(17),
+  REMINDERS_DISPATCH_MINUTE: z.coerce.number().min(0).max(59).default(0),
+  REMINDERS_BACKFILL_CRON: z.string().min(1).default('0 0,30 * * * *'),
+  REMINDERS_PROCESSOR_CRON: z.string().min(1).default('15 0,30 * * * *'),
+  REMINDERS_RECOVERY_CRON: z.string().min(1).default('45 0,30 * * * *'),
+  REMINDERS_BATCH_SIZE: z.coerce.number().min(1).max(500).default(25),
+  REMINDERS_MAX_ATTEMPTS: z.coerce.number().min(1).max(10).default(3),
+  REMINDERS_RETRY_DELAY_MINUTES: z.coerce.number().min(1).max(1440).default(15),
+  REMINDERS_PROCESSING_STALE_MINUTES: z.coerce.number().min(1).max(1440).default(10),
 }).superRefine((value, ctx) => {
   if (!value.MAIL_ENABLED) {
     return;

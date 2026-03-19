@@ -57,6 +57,7 @@ export class ServicesService {
             tenant_id: currentUser.tenant_id,
             name: normalizedName,
             description: dto.description?.trim() ?? null,
+            instructions: dto.instructions?.trim() ?? null,
             duration_minutes: dto.duration_minutes,
             buffer_before_minutes: dto.buffer_before_minutes ?? 0,
             buffer_after_minutes: dto.buffer_after_minutes ?? 0,
@@ -152,6 +153,10 @@ export class ServicesService {
 
         if (dto.description !== undefined) {
             service.description = dto.description?.trim() || null;
+        }
+
+        if (dto.instructions !== undefined) {
+            service.instructions = dto.instructions?.trim() || null;
         }
 
         if (dto.duration_minutes !== undefined) {

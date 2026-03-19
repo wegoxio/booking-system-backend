@@ -1,6 +1,7 @@
 export type PublicBookingEmployee = {
   id: string;
   name: string;
+  avatar_url?: string | null;
   working_days: number[];
 };
 
@@ -8,6 +9,7 @@ export type PublicBookingService = {
   id: string;
   name: string;
   description: string | null;
+  instructions: string | null;
   duration_minutes: number;
   price: string;
   currency: string;
@@ -22,6 +24,7 @@ export type PublicBookingItem = {
   duration_minutes_snapshot: number;
   price_snapshot: string;
   currency_snapshot: string;
+  instructions_snapshot?: string | null;
   sort_order: number;
 };
 

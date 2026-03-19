@@ -1,4 +1,17 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  MaxFileSizeValidator,
+  Param,
+  ParseFilePipe,
+  Patch,
+  Post,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
@@ -11,6 +24,15 @@ type CurrentJwtUser = {
   sub: string;
   role: 'SUPER_ADMIN' | 'TENANT_ADMIN';
   tenant_id: string | null;
+};
+
+const MAX_EMPLOYEE_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
+
+type UploadedAssetFile = {
+  buffer: Buffer;
+  mimetype: string;
+  size?: number;
+  originalname?: string;
 };
 
 @Controller('employees')
@@ -41,5 +63,23 @@ export class EmployeesController {
     @CurrentUser() currentUser: CurrentJwtUser,
   ) {
     return this.employeesService.update(id, dto, currentUser);
+  }
+
+  @Post(':id/avatar')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadAvatar(
+    @Param('id') id: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: MAX_EMPLOYEE_AVATAR_SIZE_BYTES }),
+        ],
+        fileIsRequired: true,
+      }),
+    )
+    file: UploadedAssetFile,
+    @CurrentUser() currentUser: CurrentJwtUser,
+  ) {
+    return this.employeesService.uploadAvatar(id, file, currentUser);
   }
 }
