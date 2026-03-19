@@ -1,98 +1,128 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Wegox Booking Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API REST de Wegox Booking, una plataforma SaaS de reservas multi-tenant para negocios de servicios.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Que resuelve este backend
 
-## Description
+- autenticacion con JWT, refresh token en cookie HttpOnly y proteccion CSRF
+- multi-tenancy con aislamiento por `tenant`
+- gestion de tenants y tenant admins
+- CRUD de servicios y empleados
+- motor de disponibilidad por empleado
+- reservas publicas y reservas manuales desde panel
+- branding por tenant y plataforma
+- notificaciones por email
+- recordatorios automaticos para citas del dia siguiente
+- auditoria operativa y metricas de dashboard
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Stack tecnico
 
-## Project setup
+- NestJS 11
+- TypeORM 0.3
+- PostgreSQL
+- Argon2
+- Zod para validacion de entorno
+- AWS S3 para assets
+- Resend para email
+- Cloudflare Turnstile para captcha
 
-```bash
-$ pnpm install
-```
+## Modulos principales
 
-## Compile and run the project
+- `auth`
+- `tenant`
+- `users`
+- `services`
+- `employees`
+- `bookings`
+- `tenant-settings`
+- `notifications`
+- `reminders`
+- `audit`
+- `dashboard`
 
-```bash
-# development
-$ pnpm run start
+## Requisitos
 
-# watch mode
-$ pnpm run start:dev
+- Node.js 20+
+- pnpm
+- PostgreSQL
 
-# production mode
-$ pnpm run start:prod
-```
+## Puesta en marcha local
 
-## Run tests
-
-```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+1. Instala dependencias:
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+pnpm install
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+2. Crea tu archivo de entorno a partir de `.env.example`.
 
-## Resources
+3. Configura al menos:
 
-Check out a few resources that may come in handy when working with NestJS:
+- base de datos PostgreSQL
+- cookies y CORS
+- secretos JWT
+- Turnstile si quieres captcha
+- Resend si quieres email
+- S3 si quieres subida de assets
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+4. Ejecuta migraciones:
 
-## Support
+```bash
+pnpm run migration:run
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+5. Si necesitas un super admin inicial:
 
-## Stay in touch
+```bash
+pnpm run seed:superadmin
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+6. Levanta la API en desarrollo:
 
-## License
+```bash
+pnpm run start:dev
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+La aplicacion expone sus endpoints bajo el prefijo global `api`.
+
+## Scripts utiles
+
+```bash
+pnpm build
+pnpm exec tsc --noEmit
+pnpm run test
+pnpm run migration:status
+pnpm run migration:run
+```
+
+## Alcance funcional validado
+
+El estado actual del backend cubre:
+
+- login, refresh, logout y logout-all
+- onboarding y activacion de cuenta para tenant admins
+- solicitud y completado de password reset
+- CRUD de tenants y tenant admins
+- CRUD de servicios y empleados
+- upload de avatar para empleados
+- horarios, breaks y time-off por empleado
+- reserva publica por `tenantSlug`
+- reserva manual desde dashboard
+- cambio de estado de bookings
+- snapshots de servicios dentro del booking
+- branding publico y privado
+- emails de booking y recordatorios programados
+- auditoria y metricas por rol
+
+## Compatibilidad de release
+
+Para la primera salida publica del MVP, este backend esta pensado para emparejarse con el frontend `v1.0.0-beta.1`.
+
+## Limitaciones conocidas
+
+- no hay pagos integrados
+- no hay WhatsApp o SMS nativo
+- no hay calendar sync
+- no hay Swagger/OpenAPI publicado todavia
+- el campo `requires_confirmation` aun no dispara un flujo diferencial completo
+- el campo `capacity` existe, pero el motor actual sigue centrado en disponibilidad por empleado
