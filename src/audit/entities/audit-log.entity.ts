@@ -17,8 +17,8 @@ export class AuditLog {
 
   // Quién ejecutó la acción (superadmin o tenant admin)
   @Index()
-  @Column({ type: 'uuid' })
-  actor_user_id: string;
+  @Column({ type: 'uuid', nullable: true })
+  actor_user_id: string | null;
 
   @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'actor_user_id' })

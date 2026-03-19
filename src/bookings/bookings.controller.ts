@@ -20,6 +20,7 @@ import { AvailabilityQueryDto } from './dto/availability-query.dto';
 import { SetEmployeeScheduleDto } from './dto/set-employee-schedule.dto';
 import { CreateEmployeeTimeOffDto } from './dto/create-employee-time-off.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { CreateManualBookingDto } from './dto/create-manual-booking.dto';
 import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 import type { CurrentJwtUser } from 'src/auth/types';
@@ -91,6 +92,14 @@ export class BookingsController {
     @CurrentUser() currentUser: CurrentJwtUser,
   ) {
     return this.bookingsService.createBooking(dto, currentUser);
+  }
+
+  @Post('manual')
+  createManual(
+    @Body() dto: CreateManualBookingDto,
+    @CurrentUser() currentUser: CurrentJwtUser,
+  ) {
+    return this.bookingsService.createManualBooking(dto, currentUser);
   }
 
   @Get()

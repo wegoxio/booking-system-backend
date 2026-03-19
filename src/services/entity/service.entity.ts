@@ -29,6 +29,9 @@ export class Service extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
+  @Column({ type: 'text', nullable: true })
+  instructions: string | null;
+
   @Column({ type: 'int' })
   duration_minutes: number;
 

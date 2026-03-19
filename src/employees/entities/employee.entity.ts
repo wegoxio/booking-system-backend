@@ -40,6 +40,12 @@ export class Employee extends BaseEntity {
   @Column({ type: 'varchar', length: 20, nullable: true })
   phone_e164: string | null;
 
+  @Column({ type: 'varchar', length: 2048, nullable: true })
+  avatar_url: string | null;
+
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  avatar_key: string | null;
+
   @Column({ type: 'varchar', length: 64, default: 'UTC' })
   schedule_timezone: string;
 

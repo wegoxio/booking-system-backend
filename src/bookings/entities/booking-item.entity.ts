@@ -47,6 +47,9 @@ export class BookingItem extends BaseEntity {
   @Column({ type: 'varchar', length: 3, default: 'USD' })
   currency_snapshot: string;
 
+  @Column({ type: 'text', nullable: true })
+  instructions_snapshot: string | null;
+
   @Column({ type: 'int', default: 0 })
   sort_order: number;
 }

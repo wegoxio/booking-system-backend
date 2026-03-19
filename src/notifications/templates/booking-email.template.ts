@@ -91,6 +91,10 @@ function getSubject(
       return audience === 'CUSTOMER'
         ? `Tu cita en ${businessName} fue registrada`
         : `Nueva cita agendada para ${customerName} en ${businessName}`;
+    case 'BOOKING_REMINDER_DAY_BEFORE':
+      return audience === 'CUSTOMER'
+        ? `Recordatorio: tu cita en ${businessName} es manana`
+        : `Recordatorio: manana atiendes a ${customerName} en ${businessName}`;
     case 'BOOKING_COMPLETED':
       return audience === 'CUSTOMER'
         ? `Tu cita en ${businessName} fue completada`
@@ -114,6 +118,10 @@ function getHeadline(
       return audience === 'CUSTOMER'
         ? `Tu cita en ${businessName} ya quedo registrada`
         : 'Se registro una nueva cita en la agenda';
+    case 'BOOKING_REMINDER_DAY_BEFORE':
+      return audience === 'CUSTOMER'
+        ? `Tu cita en ${businessName} es manana`
+        : 'Manana tienes una cita agendada';
     case 'BOOKING_COMPLETED':
       return audience === 'CUSTOMER'
         ? `Tu cita en ${businessName} fue completada`
@@ -140,6 +148,14 @@ function getIntro(
     return `Se agendo una nueva cita para ${booking.customerName}. Aqui tienes el resumen operativo del booking.`;
   }
 
+  if (event === 'BOOKING_REMINDER_DAY_BEFORE' && audience === 'CUSTOMER') {
+    return `Hola ${booking.customerName}, te recordamos que manana tienes una cita programada. Te dejamos el resumen para que la tengas presente.`;
+  }
+
+  if (event === 'BOOKING_REMINDER_DAY_BEFORE') {
+    return `Este es tu recordatorio operativo para la cita de manana con ${booking.customerName}.`;
+  }
+
   if (event === 'BOOKING_COMPLETED' && audience === 'CUSTOMER') {
     return `Hola ${booking.customerName}, gracias por visitarnos. Esta confirmacion deja constancia de que tu servicio fue completado.`;
   }
@@ -158,17 +174,24 @@ function getIntro(
 function buildServicesMarkup(booking: BookingNotificationPayload): string {
   return booking.services
     .map(
-      (service) => `
+      (service) => {
+        const instructionsMarkup = service.instructions
+          ? `<div style="margin-top: 8px; font-size: 12px; line-height: 1.6; color: #92400e;">Indicaciones: ${escapeHtml(service.instructions)}</div>`
+          : '';
+
+        return `
         <tr class="service-row">
           <td style="padding: 10px 0; border-bottom: 1px solid rgba(148,163,184,0.16);">
             <div style="font-size: 14px; font-weight: 700; color: #111827;">${escapeHtml(service.name)}</div>
             <div style="margin-top: 4px; font-size: 12px; color: #6b7280;">${escapeHtml(formatDuration(service.durationMinutes))}</div>
+            ${instructionsMarkup}
           </td>
           <td class="service-price-cell" style="padding: 10px 0; border-bottom: 1px solid rgba(148,163,184,0.16); text-align: right; font-size: 13px; font-weight: 700; color: #111827;">
             <div style="display: inline-block;">${escapeHtml(formatMoney(service.price, service.currency))}</div>
           </td>
         </tr>
-      `,
+      `;
+      },
     )
     .join('');
 }
@@ -480,7 +503,7 @@ export function buildBookingLifecycleEmail(input: {
     'Servicios:',
     ...booking.services.map(
       (service) =>
-        `- ${service.name} (${formatDuration(service.durationMinutes)}) - ${formatMoney(service.price, service.currency)}`,
+        `- ${service.name} (${formatDuration(service.durationMinutes)}) - ${formatMoney(service.price, service.currency)}${service.instructions ? ` | Indicaciones: ${service.instructions}` : ''}`,
     ),
     '',
     `Negocio: ${business.tenantName}`,

@@ -16,6 +16,6 @@ import { S3StorageService } from './services/s3-storage.service';
   ],
   controllers: [TenantSettingsController, TenantSettingsPublicController],
   providers: [TenantSettingsService, S3StorageService],
-  exports: [TenantSettingsService],
+  exports: [TenantSettingsService, S3StorageService],
 })
 export class TenantSettingsModule {}

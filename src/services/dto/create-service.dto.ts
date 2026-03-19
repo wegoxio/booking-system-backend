@@ -26,6 +26,11 @@ export class CreateServiceDto {
   @Length(0, 1000)
   description?: string;
 
+  @IsOptional()
+  @IsString()
+  @Length(0, 2000)
+  instructions?: string;
+
   @IsInt()
   @IsPositive()
   duration_minutes: number;

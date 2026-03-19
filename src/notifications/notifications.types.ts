@@ -7,7 +7,8 @@ import type {
 export type BookingNotificationEvent =
   | 'BOOKING_CREATED'
   | 'BOOKING_COMPLETED'
-  | 'BOOKING_CANCELLED';
+  | 'BOOKING_CANCELLED'
+  | 'BOOKING_REMINDER_DAY_BEFORE';
 
 export type BookingNotificationAudience =
   | 'TENANT_ADMIN'
@@ -51,6 +52,7 @@ export type BookingNotificationPayload = {
     durationMinutes: number;
     price: string;
     currency: string;
+    instructions: string | null;
   }>;
 };
 

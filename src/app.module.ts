@@ -12,8 +12,10 @@ import { EmployeesModule } from './employees/employees.module';
 import { TenantSettingsModule } from './tenant-settings/tenant-settings.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { RemindersModule } from './reminders/reminders.module';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -25,7 +27,9 @@ import { APP_GUARD } from '@nestjs/core';
     EmployeesModule,
     BookingsModule,
     DashboardModule,
+    RemindersModule,
     TenantSettingsModule,
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv
