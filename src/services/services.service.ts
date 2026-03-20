@@ -32,7 +32,7 @@ export class ServicesService {
 
     async create(dto: CreateServiceDto, currentUser: CurrentJwtUser): Promise<Service> {
         if (!currentUser.tenant_id) {
-            throw new BadRequestException('Tenant context is required');
+            throw new BadRequestException('El contexto del negocio es obligatorio.');
         }
 
         const normalizedName = dto.name.trim();
@@ -45,7 +45,7 @@ export class ServicesService {
         });
 
         if (existing) {
-            throw new ConflictException('A service with this name already exists');
+            throw new ConflictException('Ya existe un servicio con ese nombre.');
         }
 
         const employees = await this.resolveTenantEmployees(
@@ -94,7 +94,7 @@ export class ServicesService {
 
     async findAll(currentUser: CurrentJwtUser): Promise<Service[]> {
         if (!currentUser.tenant_id) {
-            throw new BadRequestException('Tenant context is required');
+            throw new BadRequestException('El contexto del negocio es obligatorio.');
         }
 
         return this.servicesRepository.find({
@@ -109,7 +109,7 @@ export class ServicesService {
 
     async findOne(id: string, currentUser: CurrentJwtUser): Promise<Service> {
         if (!currentUser.tenant_id) {
-            throw new BadRequestException('Tenant context is required');
+            throw new BadRequestException('El contexto del negocio es obligatorio.');
         }
 
         const service = await this.servicesRepository.findOne({
@@ -121,7 +121,7 @@ export class ServicesService {
         });
 
         if (!service) {
-            throw new NotFoundException('Service not found');
+            throw new NotFoundException('No se encontró el servicio.');
         }
 
         return service;
@@ -145,7 +145,7 @@ export class ServicesService {
             });
 
             if (duplicate && duplicate.id !== service.id) {
-                throw new ConflictException('A service with this name already exists');
+                throw new ConflictException('Ya existe un servicio con ese nombre.');
             }
 
             service.name = normalizedName;
@@ -259,7 +259,7 @@ export class ServicesService {
         const uniqueIds = Array.from(new Set(employeeIds));
 
         if (uniqueIds.length === 0) {
-            throw new BadRequestException('At least one employee is required');
+            throw new BadRequestException('Debes asignar al menos un profesional.');
         }
 
         const employees = await this.employeesRepository.find({

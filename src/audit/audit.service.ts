@@ -57,7 +57,7 @@ export class AuditService {
 
     if (currentUser.role === 'TENANT_ADMIN') {
       if (!currentUser.tenant_id) {
-        throw new BadRequestException('Tenant context is required');
+        throw new BadRequestException('El contexto del negocio es obligatorio.');
       }
       qb.andWhere('audit.tenant_id = :tenantId', {
         tenantId: currentUser.tenant_id,
@@ -201,7 +201,7 @@ export class AuditService {
 
   private getUtcRangeForDate(value: string): { start: Date; end: Date } {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      throw new BadRequestException('Invalid date format. Use YYYY-MM-DD');
+      throw new BadRequestException('Formato de fecha inválido. Usa YYYY-MM-DD');
     }
 
     const start = new Date(`${value}T00:00:00.000Z`);

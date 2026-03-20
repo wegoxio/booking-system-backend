@@ -76,7 +76,7 @@ export class AuthService {
     const email = dto.email.toLowerCase().trim();
 
     const user = await this.usersRepo.findOne({ where: { email } });
-    if (!user) throw new UnauthorizedException('Credenciales Invalidas.');
+    if (!user) throw new UnauthorizedException('Credenciales inválidas.');
 
     if (this.isUserLocked(user)) {
       await this.auditService.log({
@@ -92,7 +92,7 @@ export class AuthService {
         ip: normalizedContext.ip,
         user_agent: normalizedContext.user_agent,
       });
-      throw new UnauthorizedException('Credenciales Invalidas.');
+      throw new UnauthorizedException('Credenciales inválidas.');
     }
 
     if (!user.is_active) {
@@ -108,7 +108,7 @@ export class AuthService {
         ip: normalizedContext.ip,
         user_agent: normalizedContext.user_agent,
       });
-      throw new ForbiddenException('Credenciales Invalidas.');
+      throw new ForbiddenException('Credenciales inválidas.');
     }
 
     if (!user.password_hash) {
@@ -124,7 +124,7 @@ export class AuthService {
         ip: normalizedContext.ip,
         user_agent: normalizedContext.user_agent,
       });
-      throw new UnauthorizedException('Credenciales Invalidas.');
+      throw new UnauthorizedException('Credenciales inválidas.');
     }
 
     if (user.role === 'TENANT_ADMIN' && !user.email_verified_at) {
@@ -140,13 +140,13 @@ export class AuthService {
         ip: normalizedContext.ip,
         user_agent: normalizedContext.user_agent,
       });
-      throw new UnauthorizedException('Credenciales Invalidas.');
+      throw new UnauthorizedException('Credenciales inválidas.');
     }
 
     const passwordMatches = await argon2.verify(user.password_hash, dto.password);
     if (!passwordMatches) {
       await this.registerFailedLoginAttempt(user.id, normalizedContext);
-      throw new UnauthorizedException('Credenciales Invalidas.');
+      throw new UnauthorizedException('Credenciales inválidas.');
     }
 
     const validatedUser = await this.ensureUserAndTenantContextForSession(user.id);
@@ -200,7 +200,7 @@ export class AuthService {
         ip: normalizedContext.ip,
         user_agent: normalizedContext.user_agent,
       });
-      throw new UnauthorizedException('Sesion invalida.');
+      throw new UnauthorizedException('Sesión inválida.');
     }
 
     return this.authSessionsRepo.manager.transaction(async (manager) => {
@@ -225,7 +225,7 @@ export class AuthService {
           ip: normalizedContext.ip,
           user_agent: normalizedContext.user_agent,
         });
-        throw new UnauthorizedException('Sesion invalida.');
+        throw new UnauthorizedException('Sesión inválida.');
       }
 
       if (!this.csrfTokenMatches(csrfToken, currentSession.csrf_token_hash)) {
@@ -242,7 +242,7 @@ export class AuthService {
           ip: normalizedContext.ip,
           user_agent: normalizedContext.user_agent,
         });
-        throw new UnauthorizedException('Sesion invalida.');
+        throw new UnauthorizedException('Sesión inválida.');
       }
 
       if (currentSession.revoked_at) {
@@ -294,7 +294,7 @@ export class AuthService {
           ip: normalizedContext.ip,
           user_agent: normalizedContext.user_agent,
         });
-        throw new UnauthorizedException('Sesion invalida.');
+        throw new UnauthorizedException('Sesión inválida.');
       }
 
       if (currentSession.token_jti !== payload.jti) {
@@ -312,7 +312,7 @@ export class AuthService {
           ip: normalizedContext.ip,
           user_agent: normalizedContext.user_agent,
         });
-        throw new UnauthorizedException('Sesion invalida.');
+        throw new UnauthorizedException('Sesión inválida.');
       }
 
       if (currentSession.expires_at.getTime() <= now.getTime()) {
@@ -334,7 +334,7 @@ export class AuthService {
           ip: normalizedContext.ip,
           user_agent: normalizedContext.user_agent,
         });
-        throw new UnauthorizedException('Sesion expirada.');
+        throw new UnauthorizedException('Sesión expirada.');
       }
 
       const refreshTokenMatches = await argon2.verify(
@@ -356,7 +356,7 @@ export class AuthService {
           ip: normalizedContext.ip,
           user_agent: normalizedContext.user_agent,
         });
-        throw new UnauthorizedException('Sesion invalida.');
+        throw new UnauthorizedException('Sesión inválida.');
       }
 
       const { tokens, session } = await this.createSessionTokens(
@@ -417,7 +417,7 @@ export class AuthService {
     }
 
     if (!this.csrfTokenMatches(csrfToken, session.csrf_token_hash)) {
-      throw new UnauthorizedException('Sesion invalida.');
+      throw new UnauthorizedException('Sesión inválida.');
     }
 
     if (!session.revoked_at) {
@@ -461,7 +461,7 @@ export class AuthService {
       });
 
       if (!lockedUser) {
-        throw new UnauthorizedException('Usuario invalido.');
+        throw new UnauthorizedException('Usuario inválido.');
       }
 
       lockedUser.token_version = (lockedUser.token_version ?? 0) + 1;
@@ -500,6 +500,66 @@ export class AuthService {
     };
   }
 
+  async markTenantDashboardTourCompleted(
+    currentUser: CurrentJwtUser,
+  ): Promise<{ success: true; completed_at: string | null }> {
+    const result = await this.usersRepo.manager.transaction(async (manager) => {
+      const usersRepo = manager.getRepository(User);
+      const lockedUser = await usersRepo.findOne({
+        where: { id: currentUser.id },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!lockedUser || !lockedUser.is_active) {
+        throw new UnauthorizedException('Usuario inválido.');
+      }
+
+      if (lockedUser.role !== 'TENANT_ADMIN') {
+        return {
+          completed_at: lockedUser.tenant_dashboard_tour_completed_at,
+          did_mark: false,
+          tenant_id: lockedUser.tenant_id ?? null,
+        };
+      }
+
+      if (lockedUser.tenant_dashboard_tour_completed_at) {
+        return {
+          completed_at: lockedUser.tenant_dashboard_tour_completed_at,
+          did_mark: false,
+          tenant_id: lockedUser.tenant_id ?? null,
+        };
+      }
+
+      const now = new Date();
+      lockedUser.tenant_dashboard_tour_completed_at = now;
+      await usersRepo.save(lockedUser);
+
+      return {
+        completed_at: now,
+        did_mark: true,
+        tenant_id: lockedUser.tenant_id ?? null,
+      };
+    });
+
+    if (result.did_mark) {
+      await this.auditService.log({
+        actor_user_id: currentUser.id,
+        tenant_id: result.tenant_id,
+        action: 'AUTH_TENANT_DASHBOARD_TOUR_COMPLETED',
+        entity: 'auth',
+        entity_id: currentUser.id,
+        metadata: {
+          completed_at: result.completed_at?.toISOString() ?? null,
+        },
+      });
+    }
+
+    return {
+      success: true,
+      completed_at: result.completed_at?.toISOString() ?? null,
+    };
+  }
+
   private verifyRefreshToken(token: string): RefreshJwtPayload {
     try {
       const payload = this.jwt.verify<RefreshJwtPayload>(token, {
@@ -512,12 +572,12 @@ export class AuthService {
         !payload.jti ||
         typeof payload.token_version !== 'number'
       ) {
-        throw new UnauthorizedException('Sesion invalida.');
+        throw new UnauthorizedException('Sesión inválida.');
       }
 
       return payload;
     } catch {
-      throw new UnauthorizedException('Sesion invalida.');
+      throw new UnauthorizedException('Sesión inválida.');
     }
   }
 
@@ -528,20 +588,20 @@ export class AuthService {
     });
 
     if (!user || !user.is_active) {
-      throw new UnauthorizedException('Usuario invalido.');
+      throw new UnauthorizedException('Usuario inválido.');
     }
 
     if (user.role === 'TENANT_ADMIN') {
       if (!user.tenant_id || !user.tenant) {
-        throw new ForbiddenException('Tenant context missing');
+        throw new ForbiddenException('Falta el contexto del negocio.');
       }
 
       if (!user.tenant.is_active) {
-        throw new ForbiddenException('Tenant disabled');
+        throw new ForbiddenException('El negocio está deshabilitado.');
       }
 
       if (!user.email_verified_at) {
-        throw new ForbiddenException('Email not verified');
+        throw new ForbiddenException('El correo electrónico no está verificado.');
       }
     }
 
@@ -557,7 +617,7 @@ export class AuthService {
       });
 
       if (!lockedUser) {
-        throw new UnauthorizedException('Usuario invalido.');
+        throw new UnauthorizedException('Usuario inválido.');
       }
 
       lockedUser.failed_login_attempts = 0;

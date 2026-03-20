@@ -24,6 +24,7 @@
     "migration:revert": "pnpm run typeorm migration:revert",
     "migration:status": "pnpm run typeorm migration:show  -- -d src/database/data-source.ts",
     "seed:superadmin": "ts-node -r tsconfig-paths/register src/database/seeds/super-admin.seed.ts",
+    "seed:reports-demo": "ts-node -r tsconfig-paths/register src/database/seeds/reports-demo.seed.ts",
     "db:reset": "ts-node -r tsconfig-paths/register src/database/scripts/reset-db.ts"
   },
   "dependencies": {
@@ -45,6 +46,7 @@
     "cookie-parser": "^1.4.7",
     "cron": "^4.4.0",
     "dotenv": "^17.3.1",
+    "exceljs": "^4.4.0",
     "helmet": "^8.1.0",
     "libphonenumber-js": "^1.12.40",
     "passport": "^0.7.0",

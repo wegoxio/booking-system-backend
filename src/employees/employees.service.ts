@@ -55,7 +55,7 @@ export class EmployeesService {
 
   async create(dto: CreateEmployeeDto, currentUser: CurrentJwtUser): Promise<Employee> {
     if (!currentUser.tenant_id) {
-      throw new BadRequestException('Tenant context is required');
+      throw new BadRequestException('El contexto del negocio es obligatorio.');
     }
 
     const normalizedEmail = dto.email.trim().toLowerCase();
@@ -64,7 +64,7 @@ export class EmployeesService {
     });
 
     if (existing) {
-      throw new ConflictException('An employee with this email already exists');
+      throw new ConflictException('Ya existe un profesional con ese correo.');
     }
 
     const normalizedPhone = normalizePhoneInput({
@@ -99,7 +99,7 @@ export class EmployeesService {
 
   async findAll(currentUser: CurrentJwtUser): Promise<Employee[]> {
     if (!currentUser.tenant_id) {
-      throw new BadRequestException('Tenant context is required');
+      throw new BadRequestException('El contexto del negocio es obligatorio.');
     }
 
     return this.employeesRepository.find({
@@ -110,7 +110,7 @@ export class EmployeesService {
 
   async findOne(id: string, currentUser: CurrentJwtUser): Promise<Employee> {
     if (!currentUser.tenant_id) {
-      throw new BadRequestException('Tenant context is required');
+      throw new BadRequestException('El contexto del negocio es obligatorio.');
     }
 
     const employee = await this.employeesRepository.findOne({
@@ -118,7 +118,7 @@ export class EmployeesService {
     });
 
     if (!employee) {
-      throw new NotFoundException('Employee not found');
+      throw new NotFoundException('No se encontró el profesional');
     }
 
     return employee;
@@ -141,7 +141,7 @@ export class EmployeesService {
       });
 
       if (duplicate && duplicate.id !== employee.id) {
-        throw new ConflictException('An employee with this email already exists');
+        throw new ConflictException('Ya existe un profesional con ese correo.');
       }
 
       employee.email = normalizedEmail;
@@ -235,7 +235,7 @@ export class EmployeesService {
 
   private validateUploadedAvatar(file: UploadedAssetFile): ValidatedAvatarFile {
     if (!file?.buffer || file.buffer.length === 0) {
-      throw new BadRequestException('Image file is required');
+      throw new BadRequestException('Debes enviar un archivo de imagen.');
     }
 
     const fileSizeBytes =
@@ -256,7 +256,7 @@ export class EmployeesService {
     const declaredMime = file.mimetype?.trim().toLowerCase();
     if (declaredMime) {
       if (!ALLOWED_EMPLOYEE_AVATAR_MIME_TYPES.has(declaredMime)) {
-        throw new BadRequestException('Unsupported avatar MIME type');
+        throw new BadRequestException('El tipo MIME del avatar no es compatible.');
       }
 
       if (!this.isMimeCompatibleWithFormat(declaredMime, detectedFormat)) {
@@ -335,7 +335,7 @@ export class EmployeesService {
       case 'webp':
         return 'webp';
       default:
-        throw new BadRequestException('Unsupported avatar format');
+        throw new BadRequestException('El formato del avatar no es compatible.');
     }
   }
 
@@ -348,7 +348,7 @@ export class EmployeesService {
       case 'webp':
         return 'image/webp';
       default:
-        throw new BadRequestException('Unsupported avatar format');
+        throw new BadRequestException('El formato del avatar no es compatible.');
     }
   }
 

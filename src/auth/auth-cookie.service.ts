@@ -77,11 +77,11 @@ export class AuthCookieService {
     const headerToken = typeof headerValue === 'string' ? headerValue.trim() : '';
 
     if (!cookieToken || !headerToken) {
-      throw new ForbiddenException('CSRF token faltante.');
+      throw new ForbiddenException('Token CSRF faltante.');
     }
 
     if (!this.safeEqual(cookieToken, headerToken)) {
-      throw new ForbiddenException('CSRF token invalido.');
+      throw new ForbiddenException('Token CSRF inválido.');
     }
 
     return headerToken;

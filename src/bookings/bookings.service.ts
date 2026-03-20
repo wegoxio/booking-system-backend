@@ -215,11 +215,11 @@ export class BookingsService {
     this.assertValidTimezone(scheduleTimezone);
 
     if (hasOverlappingTimeRanges(dto.working_hours)) {
-      throw new BadRequestException('Working hours contain overlapping intervals');
+      throw new BadRequestException('El horario laboral contiene intervalos superpuestos');
     }
 
     if (dto.breaks && hasOverlappingTimeRanges(dto.breaks)) {
-      throw new BadRequestException('Breaks contain overlapping intervals');
+      throw new BadRequestException('Los descansos contienen intervalos superpuestos');
     }
 
     if (dto.breaks && dto.breaks.length > 0) {
@@ -363,11 +363,11 @@ export class BookingsService {
     const endAt = new Date(dto.end_at_utc);
 
     if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
-      throw new BadRequestException('Invalid time-off range');
+      throw new BadRequestException('Rango de bloqueo inválido');
     }
 
     if (endAt.getTime() <= startAt.getTime()) {
-      throw new BadRequestException('end_at_utc must be greater than start_at_utc');
+      throw new BadRequestException('end_at_utc debe ser mayor que start_at_utc');
     }
 
     const created = await this.employeeTimeOffRepository.save(
@@ -414,7 +414,7 @@ export class BookingsService {
     });
 
     if (!timeOff) {
-      throw new NotFoundException('Employee time off not found');
+      throw new NotFoundException('No se encontró el bloqueo del profesional');
     }
 
     await this.employeeTimeOffRepository.remove(timeOff);
@@ -565,7 +565,7 @@ export class BookingsService {
     const isCancellationStatus = this.isCancellationStatus(nextStatus);
 
     if (!BOOKING_STATUSES.includes(nextStatus)) {
-      throw new BadRequestException('Invalid booking status');
+      throw new BadRequestException('Estado de cita inválido');
     }
 
     if (booking.status === nextStatus) {
@@ -590,7 +590,7 @@ export class BookingsService {
 
     if (!isCancellationStatus && cancellationReason) {
       throw new BadRequestException(
-        'Cancellation reason can only be provided for cancelled or no-show bookings',
+        'El motivo de cancelación solo puede enviarse para citas canceladas o no asistidas',
       );
     }
 
@@ -660,7 +660,7 @@ export class BookingsService {
 
     const startAt = new Date(dto.start_at_utc);
     if (Number.isNaN(startAt.getTime())) {
-      throw new BadRequestException('Invalid booking start_at_utc');
+      throw new BadRequestException('start_at_utc de la cita es inválido');
     }
 
     const timezone = employee.schedule_timezone || 'UTC';
@@ -673,7 +673,7 @@ export class BookingsService {
     );
 
     if (endAt.getTime() <= startAt.getTime()) {
-      throw new BadRequestException('Invalid booking duration');
+      throw new BadRequestException('Duración de cita inválida');
     }
 
     const bookingStatus =
@@ -705,7 +705,7 @@ export class BookingsService {
         (slot) => slot.start_at_utc.getTime() === startAt.getTime(),
       );
       if (!matchedSlot) {
-        throw new ConflictException('Selected slot is not available');
+        throw new ConflictException('El horario seleccionado no está disponible');
       }
 
       persistedStartAt = matchedSlot.start_at_utc;
@@ -742,7 +742,7 @@ export class BookingsService {
         .getOne();
 
       if (!employeeLocked || (shouldRequireActiveEmployee && !employeeLocked.is_active)) {
-        throw new BadRequestException('Employee is inactive or not available');
+        throw new BadRequestException('El profesional está inactivo o no disponible');
       }
 
       if (
@@ -880,7 +880,7 @@ export class BookingsService {
     cancellationReason: string | null,
   ): void {
     if (!BOOKING_STATUSES.includes(status)) {
-      throw new BadRequestException('Invalid booking status');
+      throw new BadRequestException('Estado de cita inválido');
     }
 
     if (this.isCancellationStatus(status) && !cancellationReason) {
@@ -891,7 +891,7 @@ export class BookingsService {
 
     if (!this.isCancellationStatus(status) && cancellationReason) {
       throw new BadRequestException(
-        'Cancellation reason can only be provided for cancelled or no-show bookings',
+        'El motivo de cancelación solo puede enviarse para citas canceladas o no asistidas',
       );
     }
   }
@@ -961,7 +961,7 @@ export class BookingsService {
 
     if (localDate !== localEndDate) {
       throw new ConflictException(
-        'Manual bookings must stay within a single local working day',
+        'Las citas manuales deben mantenerse dentro de un mismo día laboral local',
       );
     }
 
@@ -1298,7 +1298,7 @@ export class BookingsService {
 
   private requireTenantId(currentUser: CurrentJwtUser): string {
     if (!currentUser.tenant_id) {
-      throw new BadRequestException('Tenant context is required');
+      throw new BadRequestException('El contexto del negocio es obligatorio.');
     }
     return currentUser.tenant_id;
   }
@@ -1316,7 +1316,7 @@ export class BookingsService {
     });
 
     if (!booking) {
-      throw new NotFoundException('Booking not found');
+      throw new NotFoundException('No se encontró la cita');
     }
 
     return booking;
@@ -1325,7 +1325,7 @@ export class BookingsService {
   private async findActiveTenantBySlug(tenantSlug: string): Promise<Tenant> {
     const normalizedSlug = tenantSlug.trim().toLowerCase();
     if (!normalizedSlug) {
-      throw new BadRequestException('Tenant slug is required');
+      throw new BadRequestException('El slug del negocio es obligatorio');
     }
 
     const tenant = await this.tenantsRepository.findOne({
@@ -1333,7 +1333,7 @@ export class BookingsService {
     });
 
     if (!tenant || !tenant.is_active) {
-      throw new NotFoundException('Business not found');
+      throw new NotFoundException('No se encontró el negocio');
     }
 
     return tenant;
@@ -1353,7 +1353,7 @@ export class BookingsService {
     });
 
     if (!employee) {
-      throw new NotFoundException('Employee not found');
+      throw new NotFoundException('No se encontró el profesional');
     }
 
     return employee;
@@ -1365,7 +1365,7 @@ export class BookingsService {
   ): Promise<Service[]> {
     const uniqueServiceIds = this.uniqueIds(serviceIds);
     if (uniqueServiceIds.length === 0) {
-      throw new BadRequestException('At least one service is required');
+      throw new BadRequestException('Debes seleccionar al menos un servicio');
     }
 
     const services = await this.servicesRepository.find({
@@ -1405,7 +1405,7 @@ export class BookingsService {
     try {
       new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date());
     } catch {
-      throw new BadRequestException('Invalid schedule timezone');
+      throw new BadRequestException('Zona horaria del horario inválida');
     }
   }
 

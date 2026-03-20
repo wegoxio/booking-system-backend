@@ -27,7 +27,7 @@ export class TenantService {
     const normalizedSlug = dto.slug.trim().toLowerCase();
     const existingTenant = await this.findBySlug(normalizedSlug);
     if (existingTenant) {
-      throw new ConflictException('Ya existe un tenant con ese slug.');
+      throw new ConflictException('Ya existe un negocio con ese slug.');
     }
 
     const newTenant = this.tenantRepository.create({
@@ -58,7 +58,7 @@ export class TenantService {
   async findOne(id: string): Promise<Tenant> {
     const tenant = await this.tenantRepository.findOneBy({ id });
     if (!tenant) {
-      throw new NotFoundException('Tenant no encontrado.');
+      throw new NotFoundException('Negocio no encontrado.');
     }
     return tenant;
   }
@@ -81,7 +81,7 @@ export class TenantService {
       const existingTenant = await this.findBySlug(normalizedSlug);
 
       if (existingTenant && existingTenant.id !== tenant.id) {
-        throw new ConflictException('Ya existe un tenant con ese slug.');
+        throw new ConflictException('Ya existe un negocio con ese slug.');
       }
 
       tenant.slug = normalizedSlug;

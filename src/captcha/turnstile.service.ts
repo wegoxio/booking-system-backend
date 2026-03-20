@@ -72,7 +72,7 @@ export class TurnstileService {
     const token = input.token?.trim();
     if (!token) {
       throw new BadRequestException(
-        'Completa la verificacion captcha antes de continuar.',
+        'Completa la verificación captcha antes de continuar.',
       );
     }
 
@@ -82,7 +82,7 @@ export class TurnstileService {
     if (!response.success) {
       if (errorCodes.some((code) => TURNSTILE_CONFIGURATION_ERRORS.has(code))) {
         throw new ServiceUnavailableException(
-          'El servicio de verificacion no esta disponible en este momento.',
+          'El servicio de verificación no está disponible en este momento.',
         );
       }
 
@@ -95,7 +95,7 @@ export class TurnstileService {
       (!response.action || response.action.trim() !== expectedAction)
     ) {
       throw new BadRequestException(
-        'La verificacion de seguridad no coincide con la accion solicitada.',
+        'La verificación de seguridad no coincide con la acción solicitada.',
       );
     }
 
@@ -103,7 +103,7 @@ export class TurnstileService {
       const hostname = response.hostname?.trim().toLowerCase() ?? '';
       if (!hostname || hostname !== this.expectedHostname.toLowerCase()) {
         throw new BadRequestException(
-          'La verificacion de seguridad no es valida para este dominio.',
+          'La verificación de seguridad no es válida para este dominio.',
         );
       }
     }
@@ -138,7 +138,7 @@ export class TurnstileService {
 
       if (!result.ok) {
         throw new ServiceUnavailableException(
-          'El servicio de verificacion no esta disponible en este momento.',
+          'El servicio de verificación no está disponible en este momento.',
         );
       }
 
@@ -152,7 +152,7 @@ export class TurnstileService {
       }
 
       throw new ServiceUnavailableException(
-        'No se pudo completar la verificacion de seguridad.',
+        'No se pudo completar la verificación de seguridad.',
       );
     } finally {
       clearTimeout(timeout);
@@ -161,22 +161,21 @@ export class TurnstileService {
 
   private toHumanReadableError(errorCodes: string[]): string {
     if (errorCodes.includes('timeout-or-duplicate')) {
-      return 'El captcha expiro o ya fue utilizado. Intenta nuevamente.';
+      return 'El captcha expiró o ya fue utilizado. Intenta nuevamente.';
     }
     if (errorCodes.includes('missing-input-response')) {
-      return 'Completa la verificacion captcha antes de continuar.';
+      return 'Completa la verificación captcha antes de continuar.';
     }
     if (errorCodes.includes('invalid-input-response')) {
-      return 'El captcha no es valido. Intenta nuevamente.';
+      return 'El captcha no es válido. Intenta nuevamente.';
     }
     if (errorCodes.includes('bad-request')) {
       return 'No se pudo validar el captcha. Intenta nuevamente.';
     }
     if (errorCodes.includes('internal-error')) {
-      return 'El servicio de verificacion no responde. Intenta nuevamente.';
+      return 'El servicio de verificación no responde. Intenta nuevamente.';
     }
 
-    return 'No se pudo validar la verificacion de seguridad.';
+    return 'No se pudo validar la verificación de seguridad.';
   }
 }
-

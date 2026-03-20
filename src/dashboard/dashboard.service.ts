@@ -143,7 +143,7 @@ export class DashboardService {
   }): Promise<DashboardOverviewResponse> {
     const tenantId = input.currentUser.tenant_id;
     if (!tenantId) {
-      throw new BadRequestException('Tenant context is required');
+      throw new BadRequestException('El contexto del negocio es obligatorio.');
     }
 
     const currentMonthStart = this.getUtcMonthStart(new Date());
@@ -179,7 +179,7 @@ export class DashboardService {
     ]);
 
     if (!tenant) {
-      throw new NotFoundException('Tenant not found');
+      throw new NotFoundException('No se encontró el negocio.');
     }
 
     const revenueDelta = this.getDelta(currentSummary.revenue, previousSummary.revenue);

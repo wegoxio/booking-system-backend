@@ -32,7 +32,9 @@ function normalizeCountryIso2(value?: string | null): string | null {
   if (!normalized) return null;
 
   if (!COUNTRY_ISO2_REGEX.test(normalized)) {
-    throw new BadRequestException('Phone country must be a valid ISO2 code');
+    throw new BadRequestException(
+      'El país del teléfono debe ser un código ISO2 válido.',
+    );
   }
 
   return normalized;
@@ -58,7 +60,7 @@ function toStructuredPhone(
   );
 
   if (!parsed || !parsed.isValid()) {
-    throw new BadRequestException(`Invalid ${fieldLabel}`);
+    throw new BadRequestException(`${fieldLabel} inválido`);
   }
 
   return {
@@ -74,7 +76,7 @@ export function normalizePhoneInput({
   countryIso2,
   nationalNumber,
   legacyPhone,
-  fieldLabel = 'phone',
+  fieldLabel = 'teléfono',
 }: NormalizePhoneInput): NormalizedPhone {
   const normalizedCountryIso2 = normalizeCountryIso2(countryIso2);
   const normalizedNationalNumber = normalizeNationalNumber(nationalNumber);
@@ -85,7 +87,7 @@ export function normalizePhoneInput({
   if (hasStructuredPhoneInput) {
     if (!normalizedCountryIso2 || !normalizedNationalNumber) {
       throw new BadRequestException(
-        `${fieldLabel} requires both country and number`,
+        `${fieldLabel} requiere país y número`,
       );
     }
 

@@ -20,6 +20,12 @@ export type MailRecipient = {
   name?: string | null;
 };
 
+export type EmailAttachment = {
+  filename: string;
+  content: string;
+  contentType?: string | null;
+};
+
 export type BookingNotificationBusinessContext = {
   tenantId: string;
   tenantName: string;
@@ -62,6 +68,7 @@ export type EmailSendInput = {
   subject: string;
   html: string;
   text: string;
+  attachments?: EmailAttachment[];
   replyTo?: string | null;
   idempotencyKey: string;
 };

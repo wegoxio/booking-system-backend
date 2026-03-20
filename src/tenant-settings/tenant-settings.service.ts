@@ -181,7 +181,7 @@ export class TenantSettingsService {
 
   async findMine(currentUser: CurrentJwtUser): Promise<TenantSettingsResponse> {
     if (!currentUser.tenant_id) {
-      throw new BadRequestException('Tenant context is required');
+      throw new BadRequestException('El contexto del negocio es obligatorio.');
     }
 
     const settings = await this.getOrCreateByTenantId(currentUser.tenant_id);
@@ -198,7 +198,7 @@ export class TenantSettingsService {
   ): Promise<PublicBusinessSettingsResponse> {
     const normalizedSlug = businessSlug.trim().toLowerCase();
     if (!normalizedSlug) {
-      throw new BadRequestException('Business slug is required');
+      throw new BadRequestException('El slug del negocio es obligatorio.');
     }
 
     const business = await this.tenantsRepository.findOne({
@@ -206,7 +206,7 @@ export class TenantSettingsService {
     });
 
     if (!business || !business.is_active) {
-      throw new NotFoundException('Business not found');
+      throw new NotFoundException('No se encontró el negocio');
     }
 
     const tenantSettings = await this.tenantSettingsRepository.findOne({
@@ -238,7 +238,7 @@ export class TenantSettingsService {
     currentUser: CurrentJwtUser,
   ): Promise<TenantSettingsResponse> {
     if (!currentUser.tenant_id) {
-      throw new BadRequestException('Tenant context is required');
+      throw new BadRequestException('El contexto del negocio es obligatorio.');
     }
 
     return this.updateByTenantId(currentUser.tenant_id, dto, currentUser);
@@ -295,7 +295,7 @@ export class TenantSettingsService {
     currentUser: CurrentJwtUser,
   ): Promise<TenantSettingsResponse> {
     if (!currentUser.tenant_id) {
-      throw new BadRequestException('Tenant context is required');
+      throw new BadRequestException('El contexto del negocio es obligatorio.');
     }
 
     return this.uploadAssetByTenantId(
@@ -417,7 +417,7 @@ export class TenantSettingsService {
   private async ensureTenantExists(tenantId: string): Promise<void> {
     const tenant = await this.tenantsRepository.findOneBy({ id: tenantId });
     if (!tenant) {
-      throw new NotFoundException('Tenant not found');
+      throw new NotFoundException('No se encontró el negocio.');
     }
   }
 
@@ -427,7 +427,7 @@ export class TenantSettingsService {
     scope: 'platform' | 'tenant',
   ): ValidatedAssetFile {
     if (!file?.buffer || file.buffer.length === 0) {
-      throw new BadRequestException('Image file is required');
+      throw new BadRequestException('Debes enviar un archivo de imagen.');
     }
 
     const fileSizeBytes = typeof file.size === 'number' ? file.size : file.buffer.length;
@@ -449,7 +449,7 @@ export class TenantSettingsService {
     const declaredMime = file.mimetype?.trim().toLowerCase();
     if (declaredMime) {
       if (!ALLOWED_IMAGE_MIME_TYPES.has(declaredMime)) {
-        throw new BadRequestException('Unsupported image MIME type');
+        throw new BadRequestException('El tipo MIME de la imagen no es compatible.');
       }
 
       if (!this.isMimeCompatibleWithFormat(declaredMime, detectedFormat)) {
@@ -543,7 +543,7 @@ export class TenantSettingsService {
       case 'ico':
         return 'ico';
       default:
-        throw new BadRequestException('Unsupported image format');
+        throw new BadRequestException('El formato de la imagen no es compatible.');
     }
   }
 
@@ -558,7 +558,7 @@ export class TenantSettingsService {
       case 'ico':
         return 'image/x-icon';
       default:
-        throw new BadRequestException('Unsupported image format');
+        throw new BadRequestException('El formato de la imagen no es compatible.');
     }
   }
 
