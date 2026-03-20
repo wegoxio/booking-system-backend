@@ -7,6 +7,7 @@ import { Tenant } from 'src/tenant/entities/tenant.entity';
 import { User } from 'src/users/entities/user.entity';
 import { Repository } from 'typeorm';
 import { buildBookingLifecycleEmail } from './templates/booking-email.template';
+import { buildBookingCalendarAttachment } from './templates/booking-calendar.ics';
 import {
   buildPasswordResetEmail,
   buildTenantAdminInvitationEmail,
@@ -324,6 +325,12 @@ export class NotificationsService {
       appPublicUrl: input.appPublicUrl,
       assetBaseUrl: input.assetBaseUrl,
     });
+    const calendarAttachment = buildBookingCalendarAttachment({
+      event: input.event,
+      recipient: input.recipient,
+      business: input.business,
+      booking: input.booking,
+    });
 
     const replyTo = this.configService.get<string>('MAIL_REPLY_TO_EMAIL') ?? null;
 
@@ -333,6 +340,7 @@ export class NotificationsService {
       subject: rendered.subject,
       html: rendered.html,
       text: rendered.text,
+      attachments: calendarAttachment ? [calendarAttachment] : undefined,
       replyTo,
       idempotencyKey: input.idempotencyKey,
     });

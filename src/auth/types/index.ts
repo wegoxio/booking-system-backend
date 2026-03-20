@@ -22,6 +22,7 @@ export type CurrentJwtUser = {
   email: string;
   role: UserRole;
   tenant_id: string | null;
+  tenant_dashboard_tour_completed_at: Date | null;
   session_id: string | null;
   token_version: number;
   is_active: boolean;

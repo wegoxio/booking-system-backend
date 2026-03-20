@@ -55,4 +55,7 @@ export class User extends BaseEntity {
 
   @Column({ type: 'timestamptz', nullable: true })
   last_login_at: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  tenant_dashboard_tour_completed_at: Date | null;
 }

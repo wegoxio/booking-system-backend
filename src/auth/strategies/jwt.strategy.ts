@@ -30,21 +30,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
 
     if (!user || !user.is_active) {
-      throw new UnauthorizedException('Invalid token user');
+      throw new UnauthorizedException('Token de usuario inválido.');
     }
 
     if (
       user.role === 'TENANT_ADMIN' &&
       (!user.tenant_id || !user.tenant || !user.tenant.is_active || !user.email_verified_at)
     ) {
-      throw new UnauthorizedException('Invalid tenant context');
+      throw new UnauthorizedException('Contexto del negocio inválido.');
     }
 
     if (
       typeof payload.token_version === 'number' &&
       payload.token_version !== user.token_version
     ) {
-      throw new UnauthorizedException('Invalid token version');
+      throw new UnauthorizedException('Versión de token inválida.');
     }
 
     const sessionId =
@@ -58,7 +58,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       });
 
       if (!session || session.revoked_at || session.expires_at.getTime() <= Date.now()) {
-        throw new UnauthorizedException('Invalid auth session');
+        throw new UnauthorizedException('Sesión de autenticación inválida.');
       }
     }
 
@@ -69,6 +69,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: user.email,
       role: user.role,
       tenant_id: user.tenant_id ?? null,
+      tenant_dashboard_tour_completed_at: user.tenant_dashboard_tour_completed_at ?? null,
       session_id: sessionId,
       token_version: user.token_version,
       is_active: user.is_active,

@@ -74,7 +74,7 @@ export class AuthController {
     ): Promise<AuthAccessTokenResponse> {
         const refreshToken = this.authCookieService.readRefreshTokenFromRequest(req);
         if (!refreshToken) {
-            throw new UnauthorizedException('Sesion invalida.');
+            throw new UnauthorizedException('Sesión inválida.');
         }
         const csrfToken = this.authCookieService.assertCsrfToken(req);
 
@@ -134,6 +134,14 @@ export class AuthController {
     @Get('me')
     me(@CurrentUser() user: CurrentJwtUser){
         return user;
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Post('me/tours/tenant-dashboard/complete')
+    completeTenantDashboardTour(
+      @CurrentUser() user: CurrentJwtUser,
+    ) {
+      return this.authService.markTenantDashboardTourCompleted(user);
     }
 
     @Post('password/forgot')

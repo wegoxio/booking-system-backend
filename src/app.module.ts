@@ -13,6 +13,7 @@ import { TenantSettingsModule } from './tenant-settings/tenant-settings.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { RemindersModule } from './reminders/reminders.module';
+import { ReportsModule } from './reports/reports.module';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -28,6 +29,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     BookingsModule,
     DashboardModule,
     RemindersModule,
+    ReportsModule,
     TenantSettingsModule,
     ScheduleModule.forRoot(),
     ConfigModule.forRoot({

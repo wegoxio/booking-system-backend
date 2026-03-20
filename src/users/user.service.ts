@@ -183,7 +183,7 @@ export class UserService {
       id: tenantId,
     });
     if (!existingTenant) {
-      throw new NotFoundException('No existe un tenant con ese ID.');
+      throw new NotFoundException('No existe un negocio con ese ID.');
     }
   }
 
@@ -194,7 +194,7 @@ export class UserService {
     });
 
     if (!tenantAdmin) {
-      throw new NotFoundException('Tenant admin no encontrado.');
+      throw new NotFoundException('Administrador del negocio no encontrado.');
     }
 
     return tenantAdmin;
@@ -202,7 +202,7 @@ export class UserService {
 
   private toTenantAdminResponse(user: User): TenantAdminResponse {
     if (!user.tenant_id) {
-      throw new NotFoundException('Tenant admin sin tenant asignado.');
+      throw new NotFoundException('Administrador del negocio sin negocio asignado.');
     }
 
     return {

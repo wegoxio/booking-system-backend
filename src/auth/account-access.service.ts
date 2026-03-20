@@ -306,7 +306,7 @@ export class AccountAccessService {
     });
 
     if (!user || !user.is_active || token.email_snapshot !== user.email) {
-      throw new UnauthorizedException('Enlace invalido o expirado.');
+      throw new UnauthorizedException('Enlace inválido o expirado.');
     }
 
     return {
@@ -338,7 +338,7 @@ export class AccountAccessService {
       });
 
       if (!user || !user.is_active || token.email_snapshot !== user.email) {
-        throw new UnauthorizedException('Enlace invalido o expirado.');
+        throw new UnauthorizedException('Enlace inválido o expirado.');
       }
 
       const now = new Date();
@@ -497,7 +497,7 @@ export class AccountAccessService {
     });
 
     if (!token) {
-      throw new UnauthorizedException('Enlace invalido o expirado.');
+      throw new UnauthorizedException('Enlace inválido o expirado.');
     }
 
     return token;
@@ -524,7 +524,7 @@ export class AccountAccessService {
       token.invalidated_at ||
       token.expires_at.getTime() <= now.getTime()
     ) {
-      throw new UnauthorizedException('Enlace invalido o expirado.');
+      throw new UnauthorizedException('Enlace inválido o expirado.');
     }
 
     return token;
@@ -540,7 +540,7 @@ export class AccountAccessService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Enlace invalido o expirado.');
+      throw new UnauthorizedException('Enlace inválido o expirado.');
     }
 
     user.tenant = user.tenant_id
@@ -559,7 +559,7 @@ export class AccountAccessService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Usuario invalido.');
+      throw new UnauthorizedException('Usuario inválido.');
     }
 
     return user;
@@ -574,7 +574,7 @@ export class AccountAccessService {
       !user.tenant.is_active ||
       user.email !== expectedEmail
     ) {
-      throw new UnauthorizedException('Enlace invalido o expirado.');
+      throw new UnauthorizedException('Enlace inválido o expirado.');
     }
   }
 

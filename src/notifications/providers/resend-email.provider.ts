@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EmailProvider } from './email-provider.interface';
-import type { EmailSendInput } from '../notifications.types';
+import type { EmailAttachment, EmailSendInput } from '../notifications.types';
 
 type ResendSendEmailResponse = {
   id?: string;
@@ -47,6 +47,9 @@ export class ResendEmailProvider implements EmailProvider {
 
     while (attempt < 3) {
       attempt += 1;
+      const attachments = input.attachments?.map((attachment) =>
+        this.toResendAttachment(attachment),
+      );
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -60,6 +63,7 @@ export class ResendEmailProvider implements EmailProvider {
           subject: input.subject,
           html: input.html,
           text: input.text,
+          attachments: attachments?.length ? attachments : undefined,
           reply_to: input.replyTo ?? undefined,
         }),
       });
@@ -134,5 +138,17 @@ export class ResendEmailProvider implements EmailProvider {
 
   private async sleep(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private toResendAttachment(attachment: EmailAttachment): {
+    filename: string;
+    content: string;
+    content_type?: string;
+  } {
+    return {
+      filename: attachment.filename,
+      content: Buffer.from(attachment.content, 'utf8').toString('base64'),
+      content_type: attachment.contentType ?? undefined,
+    };
   }
 }

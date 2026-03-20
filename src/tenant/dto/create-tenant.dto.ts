@@ -11,7 +11,7 @@ export class CreateTenantDto {
   @Length(3, 60)
   @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
     message:
-      'Slug invalido. Usa minusculas, numeros y guiones (sin espacios).',
+      'Slug inválido. Usa minúsculas, números y guiones (sin espacios).',
   })
   slug: string;
 }
