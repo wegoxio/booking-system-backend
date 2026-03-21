@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import { AuditService } from 'src/audit/audit.service';
-import { S3StorageService } from 'src/tenant-settings/services/s3-storage.service';
+import { AuditService } from '../audit/audit.service';
+import { S3StorageService } from '../tenant-settings/services/s3-storage.service';
 import { EmployeesService } from './employees.service';
 import { Employee } from './entities/employee.entity';
 

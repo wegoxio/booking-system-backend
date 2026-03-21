@@ -12,10 +12,10 @@ import { ServicesService } from './services.service';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { CurrentUser } from 'src/common/decorators/current-user.decorator';
-import { RolesGuard } from 'src/auth/guards/roles.guard';
-import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { ToggleServiceStatusDto } from './dto/toggle-service.dto';
 
 type CurrentJwtUser = {

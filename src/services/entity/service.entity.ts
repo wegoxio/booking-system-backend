@@ -8,9 +8,9 @@ import {
   ManyToOne,
   Unique,
 } from 'typeorm';
-import { BaseEntity } from 'src/common/entities/base.entity';
-import { Tenant } from 'src/tenant/entities/tenant.entity';
-import { Employee } from 'src/employees/entities/employee.entity';
+import { BaseEntity } from '../../common/entities/base.entity';
+import { Tenant } from '../../tenant/entities/tenant.entity';
+import { Employee } from '../../employees/entities/employee.entity';
 
 @Entity('services')
 @Unique('UQ_services_tenant_name', ['tenant_id', 'name'])

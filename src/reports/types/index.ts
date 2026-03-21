@@ -1,5 +1,5 @@
-import type { BookingSource, BookingStatus } from 'src/bookings/bookings.constants';
-import type { UserRole } from 'src/users/entities/user.entity';
+import type { BookingSource, BookingStatus } from '../../bookings/bookings.constants';
+import type { UserRole } from '../../users/entities/user.entity';
 import type { ReportGroupBy } from '../dto/reports-overview-query.dto';
 
 export type ReportsSummary = {

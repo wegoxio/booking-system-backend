@@ -7,9 +7,9 @@ import {
 import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { AuditService } from 'src/audit/audit.service';
-import type { CurrentJwtUser } from 'src/auth/types'; 
-import { Tenant } from 'src/tenant/entities/tenant.entity';
+import { AuditService } from '../audit/audit.service';
+import type { CurrentJwtUser } from '../auth/types'; 
+import { Tenant } from '../tenant/entities/tenant.entity';
 import { TenantSetting } from './entities/tenant-setting.entity';
 import { PlatformSetting } from './entities/platform-setting.entity';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';

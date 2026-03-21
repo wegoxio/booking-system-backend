@@ -1,5 +1,5 @@
-import { TenantBaseEntity } from 'src/common/entities/tenant-base-entity';
-import { Employee } from 'src/employees/entities/employee.entity';
+import { TenantBaseEntity } from '../../common/entities/tenant-base-entity';
+import { Employee } from '../../employees/entities/employee.entity';
 import {
   Column,
   Entity,

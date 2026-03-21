@@ -86,8 +86,7 @@ export const envSchema = z.object({
     z.string().min(1).optional(),
   ),
   AUTH_REFRESH_COOKIE_SAME_SITE: z
-    .enum(['lax', 'strict', 'none'])
-    .default('lax'),
+    .preprocess(parseOptionalString, z.enum(['lax', 'strict', 'none']).optional()),
   AUTH_REFRESH_COOKIE_SECURE: z
     .preprocess(parseOptionalBoolean, z.boolean().optional()),
   AUTH_CSRF_COOKIE_NAME: z.string().min(1).default('weegox_csrf'),

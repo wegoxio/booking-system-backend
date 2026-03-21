@@ -6,14 +6,14 @@ import { ConfigService } from '@nestjs/config';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { User } from 'src/users/entities/user.entity';
+import { User } from '../users/entities/user.entity';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { AuditModule } from 'src/audit/audit.module';
+import { AuditModule } from '../audit/audit.module';
 import { AuthSession } from './entities/auth-session.entity';
 import { AuthCookieService } from './auth-cookie.service';
-import { CaptchaModule } from 'src/captcha/captcha.module';
+import { CaptchaModule } from '../captcha/captcha.module';
 import { UserAccessToken } from './entities/user-access-token.entity';
-import { NotificationsModule } from 'src/notifications/notifications.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { AccountAccessService } from './account-access.service';
 
 type JwtExpiresIn = NonNullable<JwtSignOptions['expiresIn']>;

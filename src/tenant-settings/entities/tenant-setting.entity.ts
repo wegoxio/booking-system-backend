@@ -1,5 +1,5 @@
-import { BaseEntity } from 'src/common/entities/base.entity';
-import { Tenant } from 'src/tenant/entities/tenant.entity';
+import { BaseEntity } from '../../common/entities/base.entity';
+import { Tenant } from '../../tenant/entities/tenant.entity';
 import { Column, Entity, Index, JoinColumn, OneToOne, Unique } from 'typeorm';
 
 @Entity('tenant_settings')

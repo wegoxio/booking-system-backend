@@ -6,12 +6,12 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
-import { Tenant } from 'src/tenant/entities/tenant.entity';
+import { Tenant } from '../tenant/entities/tenant.entity';
 import { CreateTenantAdminDto } from './dto/create-tenant-admin.dto';
 import { UpdateTenantAdminDto } from './dto/update-tenant-admin.dto';
-import { AuditService } from 'src/audit/audit.service';
-import { CurrentJwtUser } from 'src/auth/types';
-import { AccountAccessService } from 'src/auth/account-access.service';
+import { AuditService } from '../audit/audit.service';
+import { CurrentJwtUser } from '../auth/types';
+import { AccountAccessService } from '../auth/account-access.service';
 
 type TenantAdminResponse = {
   id: string;
