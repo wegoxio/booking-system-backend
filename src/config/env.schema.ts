@@ -72,6 +72,10 @@ export const envSchema = z.object({
   DB_NAME: z.string(),
   DB_SSL: z.coerce.boolean().default(false),
   DB_LOGGING: z.coerce.boolean().default(false),
+  DB_POOL_MAX: z.coerce.number().int().positive().optional(),
+  DB_POOL_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+  DB_POOL_CONNECTION_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+  DB_POOL_KEEP_ALIVE: z.coerce.boolean().default(true),
 
   // Auth (JWT)
   JWT_SECRET: z.string().min(10),
