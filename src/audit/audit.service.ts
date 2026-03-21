@@ -4,7 +4,7 @@ import { Brackets, Repository } from 'typeorm';
 import { AuditLog } from './entities/audit-log.entity';
 import { resolveAuditMessage } from './audit-message.utils';
 import { AuditLogListItem, CreateAuditLogInput, ListAuditLogsInput } from './types';
-import { CurrentJwtUser } from 'src/auth/types';
+import { CurrentJwtUser } from '../auth/types';
 
 @Injectable()
 export class AuditService {

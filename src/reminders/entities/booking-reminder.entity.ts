@@ -1,6 +1,6 @@
-import { Booking } from 'src/bookings/entities/booking.entity';
-import { TenantBaseEntity } from 'src/common/entities/tenant-base-entity';
-import { Tenant } from 'src/tenant/entities/tenant.entity';
+import { Booking } from '../../bookings/entities/booking.entity';
+import { TenantBaseEntity } from '../../common/entities/tenant-base-entity';
+import { Tenant } from '../../tenant/entities/tenant.entity';
 import type {
   BookingReminderAudience,
   BookingReminderChannel,

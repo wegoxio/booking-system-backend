@@ -1,21 +1,21 @@
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
 
-import { AuditLog } from 'src/audit/entities/audit-log.entity';
-import { Tenant } from 'src/tenant/entities/tenant.entity';
-import { User } from 'src/users/entities/user.entity';
-import { Service } from 'src/services/entity/service.entity';
-import { Employee } from 'src/employees/entities/employee.entity';
-import { TenantSetting } from 'src/tenant-settings/entities/tenant-setting.entity';
-import { PlatformSetting } from 'src/tenant-settings/entities/platform-setting.entity';
-import { Booking } from 'src/bookings/entities/booking.entity';
-import { BookingItem } from 'src/bookings/entities/booking-item.entity';
-import { EmployeeScheduleRule } from 'src/bookings/entities/employee-schedule-rule.entity';
-import { EmployeeScheduleBreak } from 'src/bookings/entities/employee-schedule-break.entity';
-import { EmployeeTimeOff } from 'src/bookings/entities/employee-time-off.entity';
-import { AuthSession } from 'src/auth/entities/auth-session.entity';
-import { UserAccessToken } from 'src/auth/entities/user-access-token.entity';
-import { BookingReminder } from 'src/reminders/entities/booking-reminder.entity';
+import { AuditLog } from '../audit/entities/audit-log.entity';
+import { Tenant } from '../tenant/entities/tenant.entity';
+import { User } from '../users/entities/user.entity';
+import { Service } from '../services/entity/service.entity';
+import { Employee } from '../employees/entities/employee.entity';
+import { TenantSetting } from '../tenant-settings/entities/tenant-setting.entity';
+import { PlatformSetting } from '../tenant-settings/entities/platform-setting.entity';
+import { Booking } from '../bookings/entities/booking.entity';
+import { BookingItem } from '../bookings/entities/booking-item.entity';
+import { EmployeeScheduleRule } from '../bookings/entities/employee-schedule-rule.entity';
+import { EmployeeScheduleBreak } from '../bookings/entities/employee-schedule-break.entity';
+import { EmployeeTimeOff } from '../bookings/entities/employee-time-off.entity';
+import { AuthSession } from '../auth/entities/auth-session.entity';
+import { UserAccessToken } from '../auth/entities/user-access-token.entity';
+import { BookingReminder } from '../reminders/entities/booking-reminder.entity';
 
 function envBool(name: string, defaultValue = false): boolean {
     const v = process.env[name];

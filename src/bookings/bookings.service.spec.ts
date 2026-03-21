@@ -1,9 +1,9 @@
 import { ConflictException } from '@nestjs/common';
-import { AuditService } from 'src/audit/audit.service';
-import { Employee } from 'src/employees/entities/employee.entity';
-import { NotificationsService } from 'src/notifications/notifications.service';
-import { Service } from 'src/services/entity/service.entity';
-import { Tenant } from 'src/tenant/entities/tenant.entity';
+import { AuditService } from '../audit/audit.service';
+import { Employee } from '../employees/entities/employee.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { Service } from '../services/entity/service.entity';
+import { Tenant } from '../tenant/entities/tenant.entity';
 import { BookingsService } from './bookings.service';
 import { Booking } from './entities/booking.entity';
 import { BookingItem } from './entities/booking-item.entity';

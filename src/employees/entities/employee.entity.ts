@@ -1,6 +1,6 @@
-import { BaseEntity } from 'src/common/entities/base.entity';
-import { Service } from 'src/services/entity/service.entity';
-import { Tenant } from 'src/tenant/entities/tenant.entity';
+import { BaseEntity } from '../../common/entities/base.entity';
+import { Service } from '../../services/entity/service.entity';
+import { Tenant } from '../../tenant/entities/tenant.entity';
 import {
   Column,
   Entity,

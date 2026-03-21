@@ -5,7 +5,7 @@ import { EligibleEmployeesQueryDto } from './dto/eligible-employees-query.dto';
 import { BookingsService } from './bookings.service';
 import { Throttle } from '@nestjs/throttler';
 import { CreatePublicBookingDto } from './dto/create-public-booking.dto';
-import { TurnstileService } from 'src/captcha/turnstile.service';
+import { TurnstileService } from '../captcha/turnstile.service';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 

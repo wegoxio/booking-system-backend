@@ -11,12 +11,12 @@ import {
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt.guard';
-import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { Request, Response } from 'express';
 import type { AuthAccessTokenResponse, CurrentJwtUser } from './types';
 import { Throttle } from '@nestjs/throttler';
 import { AuthCookieService } from './auth-cookie.service';
-import { TurnstileService } from 'src/captcha/turnstile.service';
+import { TurnstileService } from '../captcha/turnstile.service';
 import { ConfigService } from '@nestjs/config';
 import { AccountAccessService } from './account-access.service';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';

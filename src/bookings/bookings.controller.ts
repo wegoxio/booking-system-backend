@@ -10,10 +10,10 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
-import { RolesGuard } from 'src/auth/guards/roles.guard';
-import { CurrentUser } from 'src/common/decorators/current-user.decorator';
-import { Roles } from 'src/common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 import { BookingsService } from './bookings.service';
 import { EligibleEmployeesQueryDto } from './dto/eligible-employees-query.dto';
 import { AvailabilityQueryDto } from './dto/availability-query.dto';
@@ -23,7 +23,7 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { CreateManualBookingDto } from './dto/create-manual-booking.dto';
 import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
-import type { CurrentJwtUser } from 'src/auth/types';
+import type { CurrentJwtUser } from '../auth/types';
 
 @Controller('bookings')
 @UseGuards(JwtAuthGuard, RolesGuard)

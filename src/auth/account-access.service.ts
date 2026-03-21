@@ -8,10 +8,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'crypto';
 import { EntityManager, IsNull, MoreThan, Repository } from 'typeorm';
-import { AuditService } from 'src/audit/audit.service';
-import { NotificationsService } from 'src/notifications/notifications.service';
-import { Tenant } from 'src/tenant/entities/tenant.entity';
-import { User } from 'src/users/entities/user.entity';
+import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { Tenant } from '../tenant/entities/tenant.entity';
+import { User } from '../users/entities/user.entity';
 import type { CurrentJwtUser } from './types';
 import { AuthSession } from './entities/auth-session.entity';
 import {

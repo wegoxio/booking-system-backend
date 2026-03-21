@@ -1,10 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Booking } from 'src/bookings/entities/booking.entity';
-import { TenantSettingsService } from 'src/tenant-settings/tenant-settings.service';
-import { Tenant } from 'src/tenant/entities/tenant.entity';
-import { User } from 'src/users/entities/user.entity';
+import { Booking } from '../bookings/entities/booking.entity';
+import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
+import { Tenant } from '../tenant/entities/tenant.entity';
+import { User } from '../users/entities/user.entity';
 import { Repository } from 'typeorm';
 import { buildBookingLifecycleEmail } from './templates/booking-email.template';
 import { buildBookingCalendarAttachment } from './templates/booking-calendar.ics';
