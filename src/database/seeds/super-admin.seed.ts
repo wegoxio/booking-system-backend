@@ -3,7 +3,7 @@ dotenv.config();
 
 import * as argon2 from 'argon2';
 import { AppDataSource } from '../data-source';
-import { User } from 'src/users/entities/user.entity';
+import { User } from '../../users/entities/user.entity';
 
 async function main() {
   const name = process.env.SUPERADMIN_NAME;

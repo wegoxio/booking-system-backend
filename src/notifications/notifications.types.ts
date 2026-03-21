@@ -1,8 +1,8 @@
-import type { BookingStatus } from 'src/bookings/bookings.constants';
+import type { BookingStatus } from '../bookings/bookings.constants';
 import type {
   TenantBrandingSettings,
   TenantThemeSettings,
-} from 'src/tenant-settings/tenant-settings.types';
+} from '../tenant-settings/tenant-settings.types';
 
 export type BookingNotificationEvent =
   | 'BOOKING_CREATED'

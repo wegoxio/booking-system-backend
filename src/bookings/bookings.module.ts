@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AuditModule } from 'src/audit/audit.module';
-import { Employee } from 'src/employees/entities/employee.entity';
-import { Service } from 'src/services/entity/service.entity';
-import { Tenant } from 'src/tenant/entities/tenant.entity';
+import { AuditModule } from '../audit/audit.module';
+import { Employee } from '../employees/entities/employee.entity';
+import { Service } from '../services/entity/service.entity';
+import { Tenant } from '../tenant/entities/tenant.entity';
 import { BookingsController } from './bookings.controller';
 import { BookingsPublicController } from './bookings-public.controller';
 import { BookingsService } from './bookings.service';
@@ -12,8 +12,8 @@ import { BookingItem } from './entities/booking-item.entity';
 import { EmployeeScheduleRule } from './entities/employee-schedule-rule.entity';
 import { EmployeeScheduleBreak } from './entities/employee-schedule-break.entity';
 import { EmployeeTimeOff } from './entities/employee-time-off.entity';
-import { CaptchaModule } from 'src/captcha/captcha.module';
-import { NotificationsModule } from 'src/notifications/notifications.module';
+import { CaptchaModule } from '../captcha/captcha.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [

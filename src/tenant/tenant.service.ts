@@ -8,7 +8,7 @@ import { Tenant } from './entities/tenant.entity';
 import { Repository } from 'typeorm';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
-import { AuditService } from 'src/audit/audit.service';
+import { AuditService } from '../audit/audit.service';
 
 type CurrentJwtUser = {
   sub: string;

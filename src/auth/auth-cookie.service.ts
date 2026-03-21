@@ -32,10 +32,11 @@ export class AuthCookieService {
       .get<string>('AUTH_REFRESH_COOKIE_DOMAIN')
       ?.trim();
     this.refreshCookieDomain = configuredDomain ? configuredDomain : undefined;
-    this.refreshCookieSameSite = this.configService.get<RefreshCookieSameSite>(
-      'AUTH_REFRESH_COOKIE_SAME_SITE',
-      'lax',
-    );
+    this.refreshCookieSameSite =
+      this.configService.get<RefreshCookieSameSite | undefined>(
+        'AUTH_REFRESH_COOKIE_SAME_SITE',
+        undefined,
+      ) ?? (isProduction ? 'none' : 'lax');
     this.refreshCookieSecure = this.resolveCookieSecureValue(isProduction);
     this.csrfCookieName = this.configService.get<string>(
       'AUTH_CSRF_COOKIE_NAME',

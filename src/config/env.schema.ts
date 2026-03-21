@@ -72,6 +72,10 @@ export const envSchema = z.object({
   DB_NAME: z.string(),
   DB_SSL: z.coerce.boolean().default(false),
   DB_LOGGING: z.coerce.boolean().default(false),
+  DB_POOL_MAX: z.coerce.number().int().positive().optional(),
+  DB_POOL_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+  DB_POOL_CONNECTION_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+  DB_POOL_KEEP_ALIVE: z.coerce.boolean().default(true),
 
   // Auth (JWT)
   JWT_SECRET: z.string().min(10),
@@ -86,8 +90,7 @@ export const envSchema = z.object({
     z.string().min(1).optional(),
   ),
   AUTH_REFRESH_COOKIE_SAME_SITE: z
-    .enum(['lax', 'strict', 'none'])
-    .default('lax'),
+    .preprocess(parseOptionalString, z.enum(['lax', 'strict', 'none']).optional()),
   AUTH_REFRESH_COOKIE_SECURE: z
     .preprocess(parseOptionalBoolean, z.boolean().optional()),
   AUTH_CSRF_COOKIE_NAME: z.string().min(1).default('weegox_csrf'),

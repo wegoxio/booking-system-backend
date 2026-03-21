@@ -9,7 +9,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { BOOKING_SOURCES, BOOKING_STATUSES } from 'src/bookings/bookings.constants';
+import { BOOKING_SOURCES, BOOKING_STATUSES } from '../../bookings/bookings.constants';
 
 export const REPORT_GROUP_BY_VALUES = ['day', 'week', 'month'] as const;
 export type ReportGroupBy = (typeof REPORT_GROUP_BY_VALUES)[number];

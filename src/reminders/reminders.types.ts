@@ -1,4 +1,4 @@
-import type { Booking } from 'src/bookings/entities/booking.entity';
+import type { Booking } from '../bookings/entities/booking.entity';
 import type {
   BookingReminderAudience,
   BookingReminderChannel,

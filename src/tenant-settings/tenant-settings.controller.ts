@@ -14,11 +14,11 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
-import { RolesGuard } from 'src/auth/guards/roles.guard';
-import { CurrentUser } from 'src/common/decorators/current-user.decorator';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import type { CurrentJwtUser } from 'src/auth/types'; 
+import { JwtAuthGuard } from '../auth/guards/jwt.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
+import type { CurrentJwtUser } from '../auth/types'; 
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { TenantSettingsService } from './tenant-settings.service';
 import { TenantSettingsAssetType } from './tenant-settings.constants';

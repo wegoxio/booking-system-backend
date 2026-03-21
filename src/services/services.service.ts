@@ -9,10 +9,10 @@ import { In, Repository } from 'typeorm';
 
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
-import { AuditService } from 'src/audit/audit.service';
+import { AuditService } from '../audit/audit.service';
 import { Service } from './entity/service.entity';
 import { ToggleServiceStatusDto } from './dto/toggle-service.dto';
-import { Employee } from 'src/employees/entities/employee.entity';
+import { Employee } from '../employees/entities/employee.entity';
 
 type CurrentJwtUser = {
     sub: string;
