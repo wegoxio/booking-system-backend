@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { TenantSettingsModule } from 'src/tenant-settings/tenant-settings.module';
-import { Tenant } from 'src/tenant/entities/tenant.entity';
-import { User } from 'src/users/entities/user.entity';
+import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module';
+import { Tenant } from '../tenant/entities/tenant.entity';
+import { User } from '../users/entities/user.entity';
 import { NotificationsService } from './notifications.service';
 import { EMAIL_PROVIDER } from './providers/email-provider.interface';
 import { ResendEmailProvider } from './providers/resend-email.provider';

@@ -5,9 +5,9 @@ import {
   addDaysToDateString,
   formatDateInTimeZone,
   getUtcRangeForLocalDate,
-} from 'src/bookings/bookings.time-utils';
-import { Booking } from 'src/bookings/entities/booking.entity';
-import { NotificationsService } from 'src/notifications/notifications.service';
+} from '../bookings/bookings.time-utils';
+import { Booking } from '../bookings/entities/booking.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 import { FindManyOptions, In, Repository } from 'typeorm';
 import { BookingReminder } from './entities/booking-reminder.entity';
 import {

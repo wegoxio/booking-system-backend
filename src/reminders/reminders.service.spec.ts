@@ -1,8 +1,8 @@
-import { Booking } from 'src/bookings/entities/booking.entity';
-import { BookingItem } from 'src/bookings/entities/booking-item.entity';
-import { Employee } from 'src/employees/entities/employee.entity';
-import { NotificationsService } from 'src/notifications/notifications.service';
-import { Service } from 'src/services/entity/service.entity';
+import { Booking } from '../bookings/entities/booking.entity';
+import { BookingItem } from '../bookings/entities/booking-item.entity';
+import { Employee } from '../employees/entities/employee.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { Service } from '../services/entity/service.entity';
 import { RemindersService } from './reminders.service';
 import { BookingReminder } from './entities/booking-reminder.entity';
 

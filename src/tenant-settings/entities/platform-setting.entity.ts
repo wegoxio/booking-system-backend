@@ -1,4 +1,4 @@
-import { BaseEntity } from 'src/common/entities/base.entity';
+import { BaseEntity } from '../../common/entities/base.entity';
 import { Column, Entity, Index, Unique } from 'typeorm';
 
 @Entity('platform_settings')

@@ -3,14 +3,14 @@ dotenv.config();
 
 import * as argon2 from 'argon2';
 import { AppDataSource } from '../data-source';
-import { Booking } from 'src/bookings/entities/booking.entity';
-import { BookingItem } from 'src/bookings/entities/booking-item.entity';
-import { BookingReminder } from 'src/reminders/entities/booking-reminder.entity';
-import { Employee } from 'src/employees/entities/employee.entity';
-import { Service } from 'src/services/entity/service.entity';
-import { Tenant } from 'src/tenant/entities/tenant.entity';
-import { User } from 'src/users/entities/user.entity';
-import type { BookingSource, BookingStatus } from 'src/bookings/bookings.constants';
+import { Booking } from '../../bookings/entities/booking.entity';
+import { BookingItem } from '../../bookings/entities/booking-item.entity';
+import { BookingReminder } from '../../reminders/entities/booking-reminder.entity';
+import { Employee } from '../../employees/entities/employee.entity';
+import { Service } from '../../services/entity/service.entity';
+import { Tenant } from '../../tenant/entities/tenant.entity';
+import { User } from '../../users/entities/user.entity';
+import type { BookingSource, BookingStatus } from '../../bookings/bookings.constants';
 
 const SEED_MARKER = '[SEED_REPORTS_DEMO]';
 const CURRENCY = 'USD';

@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AuditLog } from 'src/audit/entities/audit-log.entity';
-import { Booking } from 'src/bookings/entities/booking.entity';
-import { Employee } from 'src/employees/entities/employee.entity';
-import { Service } from 'src/services/entity/service.entity';
-import { Tenant } from 'src/tenant/entities/tenant.entity';
-import { User } from 'src/users/entities/user.entity';
+import { AuditLog } from '../audit/entities/audit-log.entity';
+import { Booking } from '../bookings/entities/booking.entity';
+import { Employee } from '../employees/entities/employee.entity';
+import { Service } from '../services/entity/service.entity';
+import { Tenant } from '../tenant/entities/tenant.entity';
+import { User } from '../users/entities/user.entity';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
 

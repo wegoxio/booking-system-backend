@@ -1,19 +1,19 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { resolveAuditMessage } from 'src/audit/audit-message.utils';
-import { AuditLog } from 'src/audit/entities/audit-log.entity';
+import { resolveAuditMessage } from '../audit/audit-message.utils';
+import { AuditLog } from '../audit/entities/audit-log.entity';
 import {
   BOOKING_CANCELLATION_STATUSES,
   BOOKING_REVENUE_STATUSES,
-} from 'src/bookings/bookings.constants';
-import { Booking } from 'src/bookings/entities/booking.entity';
-import { Employee } from 'src/employees/entities/employee.entity';
-import { Service } from 'src/services/entity/service.entity';
-import { Tenant } from 'src/tenant/entities/tenant.entity';
-import { User } from 'src/users/entities/user.entity';
+} from '../bookings/bookings.constants';
+import { Booking } from '../bookings/entities/booking.entity';
+import { Employee } from '../employees/entities/employee.entity';
+import { Service } from '../services/entity/service.entity';
+import { Tenant } from '../tenant/entities/tenant.entity';
+import { User } from '../users/entities/user.entity';
 import { Repository } from 'typeorm';
 import { DashboardOverviewQueryDto } from './dto/dashboard-overview-query.dto';
-import type { CurrentJwtUser } from 'src/auth/types';
+import type { CurrentJwtUser } from '../auth/types';
 import { DashboardChartPoint, DashboardEmployeeTableRow, DashboardOverviewResponse, DashboardRecentLog, DashboardTenantTableRow, PeriodSummary } from './types';
 
 

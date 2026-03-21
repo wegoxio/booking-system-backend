@@ -1,6 +1,6 @@
 import { Column, Entity, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { Tenant } from '../../tenant/entities/tenant.entity';
-import { BaseEntity } from 'src/common/entities/base.entity';
+import { BaseEntity } from '../../common/entities/base.entity';
 
 export type UserRole = 'SUPER_ADMIN' | 'TENANT_ADMIN';
 

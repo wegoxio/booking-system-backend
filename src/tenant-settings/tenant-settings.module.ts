@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AuditModule } from 'src/audit/audit.module';
-import { Tenant } from 'src/tenant/entities/tenant.entity';
+import { AuditModule } from '../audit/audit.module';
+import { Tenant } from '../tenant/entities/tenant.entity';
 import { TenantSetting } from './entities/tenant-setting.entity';
 import { PlatformSetting } from './entities/platform-setting.entity';
 import { TenantSettingsController } from './tenant-settings.controller';

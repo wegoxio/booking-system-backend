@@ -6,8 +6,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import { EntityManager, IsNull, MoreThan, Repository } from 'typeorm';
 import { LoginDto } from './dto/login.dto';
-import { User } from 'src/users/entities/user.entity';
-import { AuditService } from 'src/audit/audit.service';
+import { User } from '../users/entities/user.entity';
+import { AuditService } from '../audit/audit.service';
 import { AuthSession } from './entities/auth-session.entity';
 import {
   AuthTokensBundle,
