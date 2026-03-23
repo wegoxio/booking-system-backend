@@ -110,6 +110,8 @@ export class ReportsService {
       scope: {
         role: currentUser.role,
         tenant_id: filters.tenantId,
+        tenant_name: currentUser.tenant?.name ?? null,
+        tenant_slug: currentUser.tenant?.slug ?? null,
       },
       filters: {
         date_from: filters.dateFrom,
@@ -700,9 +702,7 @@ export class ReportsService {
     sheet.columns = [{ width: 34 }, { width: 24 }, { width: 34 }, { width: 30 }];
 
     const generatedAt = this.formatGeneratedAt(report.generated_at, report.filters.timezone);
-    const tenantScope = report.scope.tenant_id
-      ? report.scope.tenant_id
-      : 'Todos los tenants';
+    const tenantScope = this.resolveScopeTenantLabel(report);
 
     this.applySheetTitle(sheet, {
       title: 'Reporte ejecutivo de reservas',
@@ -716,14 +716,20 @@ export class ReportsService {
       currentRow,
       'Contexto del reporte',
       [
-        { label: 'Rol de alcance', value: report.scope.role },
-        { label: 'Tenant de alcance', value: tenantScope },
-        { label: 'Agrupacion', value: report.filters.group_by },
+        { label: 'Rol de alcance', value: this.formatRoleLabel(report.scope.role) },
+        { label: 'Negocio de alcance', value: tenantScope },
+        { label: 'Agrupacion', value: this.formatGroupByLabel(report.filters.group_by) },
         { label: 'Zona horaria', value: report.filters.timezone },
-        { label: 'Filtro estado', value: report.filters.status || 'Todos' },
-        { label: 'Filtro canal', value: report.filters.source || 'Todos' },
-        { label: 'Filtro profesional', value: report.filters.employee_id || 'Todos' },
-        { label: 'Filtro servicio', value: report.filters.service_id || 'Todos' },
+        { label: 'Filtro estado', value: this.formatStatusLabel(report.filters.status) },
+        { label: 'Filtro canal', value: this.formatSourceLabel(report.filters.source) },
+        {
+          label: 'Filtro profesional',
+          value: report.filters.employee_id ? 'Aplicado' : 'Todos',
+        },
+        {
+          label: 'Filtro servicio',
+          value: report.filters.service_id ? 'Aplicado' : 'Todos',
+        },
       ],
       'D',
     );
@@ -742,19 +748,19 @@ export class ReportsService {
         {
           label: 'Completadas',
           value: report.summary.completed_count,
-          note: 'Estado COMPLETED',
+          note: 'Citas completadas',
           numFmt: EXCEL_NUMBER_FORMATS.integer,
         },
         {
           label: 'Canceladas',
           value: report.summary.cancelled_count,
-          note: 'Estado CANCELLED',
+          note: 'Citas canceladas',
           numFmt: EXCEL_NUMBER_FORMATS.integer,
         },
         {
           label: 'No asistio',
           value: report.summary.no_show_count,
-          note: 'Estado NO_SHOW',
+          note: 'Citas con inasistencia',
           numFmt: EXCEL_NUMBER_FORMATS.integer,
         },
         {
@@ -772,7 +778,7 @@ export class ReportsService {
         {
           label: 'Tasa de inasistencia',
           value: report.summary.no_show_rate,
-          note: 'No show / citas totales',
+          note: 'Inasistencias / citas totales',
           numFmt: EXCEL_NUMBER_FORMATS.percentValue,
         },
       ],
@@ -826,31 +832,31 @@ export class ReportsService {
         {
           label: 'Enviados',
           value: report.reminders.sent_count,
-          note: 'Estado SENT',
+          note: 'Recordatorios enviados',
           numFmt: EXCEL_NUMBER_FORMATS.integer,
         },
         {
           label: 'Fallidos',
           value: report.reminders.failed_count,
-          note: 'Estado FAILED',
+          note: 'Recordatorios con error',
           numFmt: EXCEL_NUMBER_FORMATS.integer,
         },
         {
           label: 'Saltados',
           value: report.reminders.skipped_count,
-          note: 'Estado SKIPPED',
+          note: 'Omitidos por reglas',
           numFmt: EXCEL_NUMBER_FORMATS.integer,
         },
         {
           label: 'Pendientes',
           value: report.reminders.pending_count,
-          note: 'Estado PENDING',
+          note: 'En cola de envio',
           numFmt: EXCEL_NUMBER_FORMATS.integer,
         },
         {
           label: 'Procesando',
           value: report.reminders.processing_count,
-          note: 'Estado PROCESSING',
+          note: 'Envio en curso',
           numFmt: EXCEL_NUMBER_FORMATS.integer,
         },
         {
@@ -885,7 +891,7 @@ export class ReportsService {
     ];
 
     this.applySheetTitle(sheet, {
-      title: 'Serie temporal de desempeno',
+      title: 'Serie temporal de desempeño',
       subtitle: `Agrupacion: ${report.filters.group_by}`,
       endColumn: 'J',
     });
@@ -896,10 +902,10 @@ export class ReportsService {
       'Citas',
       'Completadas',
       'Canceladas',
-      'No show',
-      '% Finalizacion',
+      'Inasistencias',
+      '% Completados',
       '% Cancelacion',
-      '% No show',
+      '% Inasistencia',
       'Ingresos USD',
       'Ticket promedio USD',
     ]);
@@ -999,14 +1005,14 @@ export class ReportsService {
     ];
 
     this.applySheetTitle(sheet, {
-      title: 'Servicios mas vendidos (agrupado por tenant)',
-      subtitle: 'Incluye subtotales por tenant y participacion sobre ingresos',
+      title: 'Servicios mas vendidos (agrupado por negocio)',
+      subtitle: 'Incluye subtotales por negocio y participacion sobre ingresos',
       endColumn: 'G',
     });
 
     const headerRow = 4;
     this.setRowValues(sheet, headerRow, [
-      'Tenant',
+      'Negocio',
       'Servicio',
       'Items vendidos',
       'Citas',
@@ -1041,7 +1047,7 @@ export class ReportsService {
         const tenantShare = totalRevenue > 0 ? tenantRevenue / totalRevenue : 0;
 
         this.setRowValues(sheet, currentRow, [
-          `TENANT: ${tenantLabel}`,
+          `NEGOCIO: ${tenantLabel}`,
           '',
           '',
           '',
@@ -1078,7 +1084,7 @@ export class ReportsService {
 
         this.setRowValues(sheet, currentRow, [
           tenantLabel,
-          'Subtotal tenant',
+          'Subtotal negocio',
           tenantItems,
           tenantBookings,
           tenantRevenue,
@@ -1122,21 +1128,21 @@ export class ReportsService {
     ];
 
     this.applySheetTitle(sheet, {
-      title: 'Profesionales con mejor desempeno',
-      subtitle: 'Incluye URL de avatar y tasa de finalizacion',
+      title: 'Profesionales con mejor desempeño',
+      subtitle: 'Incluye avatar y tasa de completados',
       endColumn: 'H',
     });
 
     const headerRow = 4;
     this.setRowValues(sheet, headerRow, [
       'Profesional',
-      'Avatar URL',
+      'Avatar',
       'Citas',
       'Completadas',
-      '% Finalizacion',
+      '% Completados',
       'Ingresos USD',
       'Ticket promedio USD',
-      'Employee ID',
+      'ID profesional',
     ]);
     this.applyHeaderStyle(sheet, headerRow, 1, 8);
 
@@ -1217,7 +1223,7 @@ export class ReportsService {
     ];
 
     this.applySheetTitle(sheet, {
-      title: 'Desempeno por canal',
+      title: 'desempeño por canal',
       subtitle: 'Conversion y monetizacion por origen de cita',
       endColumn: 'H',
     });
@@ -1228,7 +1234,7 @@ export class ReportsService {
       'Citas',
       'Completadas',
       'Canceladas',
-      '% Finalizacion',
+      '% Completados',
       '% Cancelacion',
       'Ingresos USD',
       'Ticket promedio USD',
@@ -1247,7 +1253,7 @@ export class ReportsService {
       const avgTicket = row.completed_count > 0 ? row.revenue_total_usd / row.completed_count : 0;
 
       this.setRowValues(sheet, currentRow, [
-        row.source,
+        this.formatSourceLabel(row.source),
         row.bookings_count,
         row.completed_count,
         row.cancelled_count,
@@ -1683,8 +1689,72 @@ export class ReportsService {
   private resolveTenantLabel(row: ReportsTopService): string {
     if (row.tenant_name) return row.tenant_name;
     if (row.tenant_slug) return row.tenant_slug;
-    if (row.tenant_id) return `ID ${row.tenant_id.slice(0, 8)}`;
-    return 'Sin tenant';
+    return 'Sin negocio';
+  }
+
+  private resolveScopeTenantLabel(report: ReportsOverviewResponse): string {
+    if (report.scope.tenant_name) return report.scope.tenant_name;
+    if (report.scope.tenant_slug) return report.scope.tenant_slug;
+    if (report.scope.tenant_id) return 'Negocio del usuario';
+    return 'Todos los negocios';
+  }
+
+  private formatRoleLabel(role: ReportsOverviewResponse['scope']['role']): string {
+    if (role === 'SUPER_ADMIN') return 'Superadministrador';
+    return 'Administrador';
+  }
+
+  private formatGroupByLabel(groupBy: ReportsOverviewResponse['filters']['group_by']): string {
+    switch (groupBy) {
+      case 'day':
+        return 'Dia';
+      case 'week':
+        return 'Semana';
+      case 'month':
+        return 'Mes';
+      default:
+        return groupBy;
+    }
+  }
+
+  private formatStatusLabel(
+    status: ReportsOverviewResponse['filters']['status'],
+  ): string {
+    if (!status) return 'Todos';
+    switch (status) {
+      case 'PENDING':
+        return 'Pendiente';
+      case 'CONFIRMED':
+        return 'Confirmada';
+      case 'IN_PROGRESS':
+        return 'En progreso';
+      case 'COMPLETED':
+        return 'Completada';
+      case 'CANCELLED':
+        return 'Cancelada';
+      case 'NO_SHOW':
+        return 'No asistio';
+      default:
+        return status;
+    }
+  }
+
+  private formatSourceLabel(
+    source: ReportsOverviewResponse['filters']['source'],
+  ): string {
+    if (!source) return 'Todos';
+    switch (source) {
+      case 'ADMIN':
+        return 'Administrador';
+      case 'WEB':
+        return 'Web';
+      case 'MANUAL':
+        return 'Manual';
+      case 'API':
+        return 'API';
+      default:
+        return source;
+    }
   }
 
   private formatGeneratedAt(value: string, timeZone: string): string {
