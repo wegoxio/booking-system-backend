@@ -72,6 +72,8 @@ export type ReportsOverviewResponse = {
   scope: {
     role: UserRole;
     tenant_id: string | null;
+    tenant_name: string | null;
+    tenant_slug: string | null;
   };
   filters: {
     date_from: string;

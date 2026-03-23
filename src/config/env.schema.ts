@@ -83,7 +83,7 @@ export const envSchema = z.object({
   JWT_ACCESS_EXPIRES_IN: z.string().optional(),
   JWT_REFRESH_SECRET: z.string().min(10).optional(),
   JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
-  AUTH_REFRESH_COOKIE_NAME: z.string().min(1).default('weegox_refresh'),
+  AUTH_REFRESH_COOKIE_NAME: z.string().min(1).default('wegox_refresh'),
   AUTH_REFRESH_COOKIE_PATH: z.string().min(1).default('/api/auth'),
   AUTH_REFRESH_COOKIE_DOMAIN: z.preprocess(
     parseOptionalString,
@@ -93,7 +93,7 @@ export const envSchema = z.object({
     .preprocess(parseOptionalString, z.enum(['lax', 'strict', 'none']).optional()),
   AUTH_REFRESH_COOKIE_SECURE: z
     .preprocess(parseOptionalBoolean, z.boolean().optional()),
-  AUTH_CSRF_COOKIE_NAME: z.string().min(1).default('weegox_csrf'),
+  AUTH_CSRF_COOKIE_NAME: z.string().min(1).default('wegox_csrf'),
   AUTH_CSRF_COOKIE_PATH: z.string().min(1).default('/'),
   AUTH_CSRF_HEADER_NAME: z.string().min(1).default('x-csrf-token'),
   TURNSTILE_ENABLED: z.coerce.boolean().default(false),
