@@ -1,4 +1,14 @@
-import { IsIn, IsOptional, IsUUID, Matches } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  Max,
+  Min,
+} from 'class-validator';
 import { BOOKING_STATUSES } from '../bookings.constants';
 
 export class ListBookingsQueryDto {
@@ -13,4 +23,21 @@ export class ListBookingsQueryDto {
   @IsOptional()
   @IsIn(BOOKING_STATUSES)
   status?: (typeof BOOKING_STATUSES)[number];
+
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(10)
+  @Max(100)
+  limit?: number;
 }

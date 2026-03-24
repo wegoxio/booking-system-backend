@@ -11,7 +11,7 @@ import { Employee } from '../employees/entities/employee.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Service } from '../services/entity/service.entity';
 import { Tenant } from '../tenant/entities/tenant.entity';
-import { DataSource, In, LessThan, MoreThan, Repository } from 'typeorm';
+import { Brackets, DataSource, In, LessThan, MoreThan, Repository } from 'typeorm';
 import { Booking } from './entities/booking.entity';
 import { BookingItem } from './entities/booking-item.entity';
 import { EmployeeScheduleRule } from './entities/employee-schedule-rule.entity';
@@ -511,23 +511,31 @@ export class BookingsService {
   async listBookings(
     query: ListBookingsQueryDto,
     currentUser: CurrentJwtUser,
-  ): Promise<Booking[]> {
+  ): Promise<{
+    data: Booking[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      total_pages: number;
+    };
+  }> {
     const tenantId = this.requireTenantId(currentUser);
+    const page = this.normalizePage(query.page);
+    const limit = this.normalizeLimit(query.limit);
 
-    const qb = this.bookingsRepository
+    const baseQb = this.bookingsRepository
       .createQueryBuilder('booking')
-      .leftJoinAndSelect('booking.employee', 'employee')
-      .leftJoinAndSelect('booking.items', 'items')
       .where('booking.tenant_id = :tenantId', { tenantId });
 
     if (query.employee_id) {
-      qb.andWhere('booking.employee_id = :employeeId', {
+      baseQb.andWhere('booking.employee_id = :employeeId', {
         employeeId: query.employee_id,
       });
     }
 
     if (query.status) {
-      qb.andWhere('booking.status = :status', {
+      baseQb.andWhere('booking.status = :status', {
         status: query.status,
       });
     }
@@ -537,15 +545,113 @@ export class BookingsService {
       const nextDate = addDaysToDateString(query.date, 1);
       const end = new Date(`${nextDate}T00:00:00.000Z`);
 
-      qb.andWhere('booking.start_at_utc >= :start AND booking.start_at_utc < :end', {
+      baseQb.andWhere('booking.start_at_utc >= :start AND booking.start_at_utc < :end', {
         start,
         end,
       });
     }
 
-    qb.orderBy('booking.start_at_utc', 'ASC').addOrderBy('items.sort_order', 'ASC');
+    if (query.q?.trim()) {
+      const queryText = `%${query.q.trim()}%`;
 
-    return qb.getMany();
+      baseQb.andWhere(
+        new Brackets((subQb) => {
+          subQb
+            .where('COALESCE(booking.customer_name, \'\') ILIKE :queryText', {
+              queryText,
+            })
+            .orWhere('COALESCE(booking.customer_email, \'\') ILIKE :queryText', {
+              queryText,
+            })
+            .orWhere('COALESCE(booking.customer_phone, \'\') ILIKE :queryText', {
+              queryText,
+            })
+            .orWhere(
+              'COALESCE(booking.customer_phone_national_number, \'\') ILIKE :queryText',
+              {
+                queryText,
+              },
+            )
+            .orWhere('COALESCE(booking.customer_phone_e164, \'\') ILIKE :queryText', {
+              queryText,
+            })
+            .orWhere(
+              `EXISTS (
+                SELECT 1
+                FROM employees employee_search
+                WHERE employee_search.id = booking.employee_id
+                  AND employee_search.tenant_id = booking.tenant_id
+                  AND COALESCE(employee_search.name, '') ILIKE :queryText
+              )`,
+              {
+                queryText,
+              },
+            )
+            .orWhere(
+              `EXISTS (
+                SELECT 1
+                FROM booking_items booking_item_search
+                WHERE booking_item_search.booking_id = booking.id
+                  AND COALESCE(booking_item_search.service_name_snapshot, '') ILIKE :queryText
+              )`,
+              {
+                queryText,
+              },
+            );
+        }),
+      );
+    }
+
+    const total = await baseQb.clone().getCount();
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    const pagedBookingIdsRaw = await baseQb
+      .clone()
+      .select('booking.id', 'id')
+      .orderBy('booking.start_at_utc', 'ASC')
+      .addOrderBy('booking.id', 'ASC')
+      .offset((page - 1) * limit)
+      .limit(limit)
+      .getRawMany<{ id: string }>();
+
+    const bookingIds = pagedBookingIdsRaw.map((row) => row.id);
+
+    if (bookingIds.length === 0) {
+      return {
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total,
+          total_pages: totalPages,
+        },
+      };
+    }
+
+    const rows = await this.bookingsRepository
+      .createQueryBuilder('booking')
+      .leftJoinAndSelect('booking.employee', 'employee')
+      .leftJoinAndSelect('booking.items', 'items')
+      .where('booking.id IN (:...bookingIds)', { bookingIds })
+      .orderBy('booking.start_at_utc', 'ASC')
+      .addOrderBy('booking.id', 'ASC')
+      .addOrderBy('items.sort_order', 'ASC')
+      .getMany();
+
+    const rowsById = new Map(rows.map((row) => [row.id, row]));
+    const orderedRows = bookingIds
+      .map((bookingId) => rowsById.get(bookingId))
+      .filter((row): row is Booking => Boolean(row));
+
+    return {
+      data: orderedRows,
+      pagination: {
+        page,
+        limit,
+        total,
+        total_pages: totalPages,
+      },
+    };
   }
 
   async findOne(id: string, currentUser: CurrentJwtUser): Promise<Booking> {
@@ -1438,6 +1544,16 @@ export class BookingsService {
         );
       }
     }
+  }
+
+  private normalizePage(value?: number): number {
+    if (!value || Number.isNaN(value)) return 1;
+    return Math.max(1, Math.floor(value));
+  }
+
+  private normalizeLimit(value?: number): number {
+    if (!value || Number.isNaN(value)) return 25;
+    return Math.min(100, Math.max(10, Math.floor(value)));
   }
 
   private uniqueIds(ids: string[]): string[] {
