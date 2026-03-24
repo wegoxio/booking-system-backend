@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   ArrayUnique,
   IsArray,
@@ -20,6 +21,7 @@ export class CreateManualBookingDto {
 
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(1)
   @ArrayUnique()
   @IsUUID('4', { each: true })
   service_ids: string[];

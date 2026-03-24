@@ -482,13 +482,29 @@ export class BookingsService {
   }
 
   async createBooking(
-    dto: CreateBookingDto,
+    dto: CreateBookingDto | CreateManualBookingDto,
     currentUser: CurrentJwtUser,
+    creationMode: BookingCreationMode = 'SLOT',
   ): Promise<Booking> {
     const tenantId = this.requireTenantId(currentUser);
-    return this.createBookingForTenant(tenantId, dto, {
+
+    if (creationMode === 'MANUAL') {
+      const manualDto = dto as CreateManualBookingDto;
+      return this.createBookingForTenant(tenantId, manualDto, {
+        actorUserId: currentUser.sub,
+        source: 'MANUAL',
+        creationMode: 'MANUAL',
+        status: manualDto.status,
+        cancellationReason: manualDto.cancellation_reason?.trim() || null,
+        allowOverlap: manualDto.allow_overlap ?? false,
+        sendCreateNotifications: false,
+      });
+    }
+
+    const strictDto = dto as CreateBookingDto;
+    return this.createBookingForTenant(tenantId, strictDto, {
       actorUserId: currentUser.sub,
-      source: dto.source ?? 'ADMIN',
+      source: strictDto.source ?? 'ADMIN',
       creationMode: 'SLOT',
       sendCreateNotifications: true,
     });
@@ -498,16 +514,7 @@ export class BookingsService {
     dto: CreateManualBookingDto,
     currentUser: CurrentJwtUser,
   ): Promise<Booking> {
-    const tenantId = this.requireTenantId(currentUser);
-    return this.createBookingForTenant(tenantId, dto, {
-      actorUserId: currentUser.sub,
-      source: 'MANUAL',
-      creationMode: 'MANUAL',
-      status: dto.status,
-      cancellationReason: dto.cancellation_reason?.trim() || null,
-      allowOverlap: dto.allow_overlap ?? false,
-      sendCreateNotifications: false,
-    });
+    return this.createBooking(dto, currentUser, 'MANUAL');
   }
 
   async listBookings(
@@ -762,6 +769,9 @@ export class BookingsService {
     options: CreateBookingOptions,
   ): Promise<Booking> {
     const serviceIds = this.uniqueIds(dto.service_ids);
+    if (serviceIds.length > 1) {
+      throw new BadRequestException('Solo se permite un servicio por cita');
+    }
     const selectedServices = await this.resolveActiveServices(tenantId, serviceIds);
     const employee = await this.findTenantEmployee(dto.employee_id, tenantId, true);
     this.assertEmployeeOffersAllServices(employee, serviceIds);
