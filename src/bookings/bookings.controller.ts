@@ -99,7 +99,7 @@ export class BookingsController {
     @Body() dto: CreateManualBookingDto,
     @CurrentUser() currentUser: CurrentJwtUser,
   ) {
-    return this.bookingsService.createManualBooking(dto, currentUser);
+    return this.bookingsService.createBooking(dto, currentUser, 'MANUAL');
   }
 
   @Get()
