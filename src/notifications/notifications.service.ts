@@ -47,6 +47,9 @@ export class NotificationsService {
     >,
   ): Promise<void> {
     if (!this.configService.get<boolean>('MAIL_ENABLED', false)) {
+      this.logger.debug(
+        `Skipping booking notification ${event} for booking ${booking.id}: MAIL_ENABLED=false`,
+      );
       return;
     }
 
@@ -68,33 +71,33 @@ export class NotificationsService {
       const deliveries: Array<{
         audience: BookingNotificationAudience;
         recipient: MailRecipient;
-      }> = [
-        ...tenantAdmins.map((admin) => ({
+      }> = tenantAdmins
+        .map((admin) => this.toRecipient(admin.email, admin.name))
+        .filter((recipient): recipient is MailRecipient => Boolean(recipient))
+        .map((recipient) => ({
           audience: 'TENANT_ADMIN' as const,
-          recipient: {
-            email: admin.email,
-            name: admin.name,
-          },
-        })),
-      ];
+          recipient,
+        }));
 
-      if (context.payload.employeeEmail) {
+      const employeeRecipient = this.toRecipient(
+        context.payload.employeeEmail,
+        context.payload.employeeName,
+      );
+      if (employeeRecipient) {
         deliveries.push({
           audience: 'EMPLOYEE',
-          recipient: {
-            email: context.payload.employeeEmail,
-            name: context.payload.employeeName,
-          },
+          recipient: employeeRecipient,
         });
       }
 
-      if (context.payload.customerEmail) {
+      const customerRecipient = this.toRecipient(
+        context.payload.customerEmail,
+        context.payload.customerName,
+      );
+      if (customerRecipient) {
         deliveries.push({
           audience: 'CUSTOMER',
-          recipient: {
-            email: context.payload.customerEmail,
-            name: context.payload.customerName,
-          },
+          recipient: customerRecipient,
         });
       }
 
@@ -106,6 +109,27 @@ export class NotificationsService {
               candidate.recipient.email.toLowerCase() ===
                 delivery.recipient.email.toLowerCase(),
           ) === index,
+      );
+
+      if (dedupedDeliveries.length === 0) {
+        this.logger.warn(
+          `No valid recipients for booking notification ${event}. booking_id=${booking.id} tenant_id=${booking.tenant_id} source=${booking.source}`,
+        );
+        return;
+      }
+
+      const adminRecipientsCount = dedupedDeliveries.filter(
+        (delivery) => delivery.audience === 'TENANT_ADMIN',
+      ).length;
+      const employeeRecipientsCount = dedupedDeliveries.filter(
+        (delivery) => delivery.audience === 'EMPLOYEE',
+      ).length;
+      const customerRecipientsCount = dedupedDeliveries.filter(
+        (delivery) => delivery.audience === 'CUSTOMER',
+      ).length;
+
+      this.logger.debug(
+        `Dispatching booking notification ${event} for booking ${booking.id}. recipients=${dedupedDeliveries.length} admins=${adminRecipientsCount} employees=${employeeRecipientsCount} customers=${customerRecipientsCount}`,
       );
 
       const results = await Promise.allSettled(
@@ -130,17 +154,22 @@ export class NotificationsService {
 
       const failures = results.filter((result) => result.status === 'rejected');
       if (failures.length > 0) {
-        failures.forEach((failure) => {
+        failures.forEach((failure, index) => {
           const reason =
             failure.status === 'rejected' ? failure.reason : 'Unknown error';
+          const recipient = dedupedDeliveries[index];
           this.logger.error(
-            `Failed to deliver booking notification for booking ${booking.id}: ${String(reason)}`,
+            `Failed to deliver booking notification ${event} for booking ${booking.id} to ${recipient?.audience ?? 'UNKNOWN'} (${recipient ? this.maskEmail(recipient.recipient.email) : 'unknown'}): ${String(reason)}`,
           );
         });
+      } else {
+        this.logger.debug(
+          `Booking notification ${event} delivered for booking ${booking.id}. sent=${dedupedDeliveries.length}`,
+        );
       }
     } catch (error) {
       this.logger.error(
-        `Unable to process booking notifications for booking ${booking.id}: ${String(error)}`,
+        `Unable to process booking notifications ${event} for booking ${booking.id}: ${String(error)}`,
       );
     }
   }
@@ -377,6 +406,47 @@ export class NotificationsService {
       0,
       256,
     );
+  }
+
+  private toRecipient(
+    email: string | null | undefined,
+    name?: string | null,
+  ): MailRecipient | null {
+    const normalizedEmail = this.normalizeEmail(email);
+    if (!normalizedEmail) {
+      return null;
+    }
+
+    return {
+      email: normalizedEmail,
+      name,
+    };
+  }
+
+  private normalizeEmail(email: string | null | undefined): string | null {
+    const normalized = email?.trim().toLowerCase() ?? '';
+    if (!normalized) {
+      return null;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+      return null;
+    }
+
+    return normalized;
+  }
+
+  private maskEmail(email: string): string {
+    const [local, domain] = email.split('@');
+    if (!local || !domain) {
+      return email;
+    }
+
+    if (local.length <= 2) {
+      return `***@${domain}`;
+    }
+
+    return `${local.slice(0, 2)}***@${domain}`;
   }
 
   private resolveMailAssetBaseUrl(appPublicUrl: string): string {

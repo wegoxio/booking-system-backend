@@ -78,6 +78,7 @@ type CreateBookingOptions = {
   cancellationReason?: string | null;
   allowOverlap?: boolean;
   sendCreateNotifications?: boolean;
+  waitForCreateNotifications?: boolean;
 };
 
 @Injectable()
@@ -475,6 +476,7 @@ export class BookingsService {
       source: 'WEB',
       creationMode: 'SLOT',
       sendCreateNotifications: true,
+      waitForCreateNotifications: true,
     });
     return this.toPublicBookingConfirmation(booking);
   }
@@ -972,10 +974,17 @@ export class BookingsService {
     const hydratedBooking = await this.findOneByTenantId(booking.id, tenantId);
 
     if (options.sendCreateNotifications) {
-      void this.notificationsService.sendBookingLifecycleNotifications(
-        hydratedBooking,
-        'BOOKING_CREATED',
-      );
+      const sendNotificationsPromise =
+        this.notificationsService.sendBookingLifecycleNotifications(
+          hydratedBooking,
+          'BOOKING_CREATED',
+        );
+
+      if (options.waitForCreateNotifications) {
+        await sendNotificationsPromise;
+      } else {
+        void sendNotificationsPromise;
+      }
     }
 
     return hydratedBooking;
