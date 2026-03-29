@@ -10,6 +10,7 @@ import { Booking } from '../bookings/entities/booking.entity';
 import { Employee } from '../employees/entities/employee.entity';
 import { Service } from '../services/entity/service.entity';
 import { Tenant } from '../tenant/entities/tenant.entity';
+import { TenantSetting } from '../tenant-settings/entities/tenant-setting.entity';
 import { User } from '../users/entities/user.entity';
 import { Repository } from 'typeorm';
 import { DashboardOverviewQueryDto } from './dto/dashboard-overview-query.dto';
@@ -24,6 +25,8 @@ export class DashboardService {
     private readonly tenantRepository: Repository<Tenant>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    @InjectRepository(TenantSetting)
+    private readonly tenantSettingsRepository: Repository<TenantSetting>,
     @InjectRepository(Booking)
     private readonly bookingsRepository: Repository<Booking>,
     @InjectRepository(Employee)
@@ -453,6 +456,9 @@ export class DashboardService {
           revenue_sum: string;
         }>(),
     ]);
+    const tenantLogoByTenant = await this.getTenantLogosByTenantId(
+      tenants.map((tenant) => tenant.id),
+    );
 
     const tenantAdminsCountByTenant = new Map<string, number>();
     const primaryAdminByTenant = new Map<string, { name: string; email: string }>();
@@ -510,6 +516,7 @@ export class DashboardService {
           tenant_id: tenant.id,
           tenant_name: tenant.name,
           tenant_slug: tenant.slug,
+          tenant_logo_url: tenantLogoByTenant.get(tenant.id) ?? null,
           tenant_is_active: tenant.is_active,
           primary_admin_name: admin?.name ?? null,
           primary_admin_email: admin?.email ?? null,
@@ -527,6 +534,33 @@ export class DashboardService {
         return left.tenant_name.localeCompare(right.tenant_name);
       })
       .slice(0, limit);
+  }
+
+  private async getTenantLogosByTenantId(
+    tenantIds: string[],
+  ): Promise<Map<string, string | null>> {
+    if (tenantIds.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.tenantSettingsRepository
+      .createQueryBuilder('settings')
+      .select('settings.tenant_id', 'tenant_id')
+      .addSelect('settings.logo_url', 'logo_url')
+      .where('settings.tenant_id IN (:...tenantIds)', { tenantIds })
+      .getRawMany<{
+        tenant_id: string;
+        logo_url: string | null;
+      }>();
+
+    return new Map(rows.map((row) => {
+      const normalizedLogo = row.logo_url?.trim() || null;
+      const logoUrl =
+        normalizedLogo && normalizedLogo !== '/wegox-logo.svg'
+          ? normalizedLogo
+          : null;
+      return [row.tenant_id, logoUrl];
+    }));
   }
 
   private async getTenantEmployeesTable(

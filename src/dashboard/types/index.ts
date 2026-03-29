@@ -29,6 +29,7 @@ export type DashboardTenantTableRow = {
   tenant_id: string;
   tenant_name: string;
   tenant_slug: string;
+  tenant_logo_url: string | null;
   tenant_is_active: boolean;
   primary_admin_name: string | null;
   primary_admin_email: string | null;

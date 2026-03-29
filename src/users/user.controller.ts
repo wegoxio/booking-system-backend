@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Param,
   Patch,
@@ -48,13 +47,5 @@ export class UsersController {
     @CurrentUser() currentUser: CurrentJwtUser,
   ) {
     return this.usersService.updateTenantAdmin(id, data, currentUser);
-  }
-
-  @Delete('tenant-admins/:id')
-  removeTenantAdmin(
-    @Param('id') id: string,
-    @CurrentUser() currentUser: CurrentJwtUser,
-  ) {
-    return this.usersService.removeTenantAdmin(id, currentUser);
   }
 }

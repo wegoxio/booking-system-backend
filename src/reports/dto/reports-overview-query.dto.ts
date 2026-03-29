@@ -9,7 +9,17 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { BOOKING_SOURCES, BOOKING_STATUSES } from '../../bookings/bookings.constants';
+
+export const REPORT_BOOKING_SOURCES = ['WEB', 'MANUAL'] as const;
+export type ReportBookingSource = (typeof REPORT_BOOKING_SOURCES)[number];
+
+export const REPORT_BOOKING_STATUSES = [
+  'PENDING',
+  'COMPLETED',
+  'CANCELLED',
+  'NO_SHOW',
+] as const;
+export type ReportBookingStatus = (typeof REPORT_BOOKING_STATUSES)[number];
 
 export const REPORT_GROUP_BY_VALUES = ['day', 'week', 'month'] as const;
 export type ReportGroupBy = (typeof REPORT_GROUP_BY_VALUES)[number];
@@ -61,13 +71,13 @@ export class ReportsOverviewQueryDto {
 
   @IsOptional()
   @Transform(({ value }) => toOptionalTrimmedString(value))
-  @IsIn(BOOKING_SOURCES)
-  source?: (typeof BOOKING_SOURCES)[number];
+  @IsIn(REPORT_BOOKING_SOURCES)
+  source?: ReportBookingSource;
 
   @IsOptional()
   @Transform(({ value }) => toOptionalTrimmedString(value))
-  @IsIn(BOOKING_STATUSES)
-  status?: (typeof BOOKING_STATUSES)[number];
+  @IsIn(REPORT_BOOKING_STATUSES)
+  status?: ReportBookingStatus;
 
   @IsOptional()
   @Type(() => Number)

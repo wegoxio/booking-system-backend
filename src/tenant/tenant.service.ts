@@ -9,6 +9,7 @@ import { Repository } from 'typeorm';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { AuditService } from '../audit/audit.service';
+import { TenantSetting } from '../tenant-settings/entities/tenant-setting.entity';
 
 type CurrentJwtUser = {
   sub: string;
@@ -20,6 +21,8 @@ type CurrentJwtUser = {
 export class TenantService {
   constructor(
     @InjectRepository(Tenant) private readonly tenantRepository: Repository<Tenant>,
+    @InjectRepository(TenantSetting)
+    private readonly tenantSettingsRepository: Repository<TenantSetting>,
     private readonly auditService: AuditService,
   ) {}
 
@@ -63,10 +66,19 @@ export class TenantService {
     return tenant;
   }
 
-  async findAll(): Promise<Tenant[]> {
-    return this.tenantRepository.find({
+  async findAll(): Promise<Array<Tenant & { tenant_logo_url: string | null }>> {
+    const tenants = await this.tenantRepository.find({
       order: { created_at: 'DESC' },
     });
+
+    const logosByTenant = await this.getTenantLogosByTenantId(
+      tenants.map((tenant) => tenant.id),
+    );
+
+    return tenants.map((tenant) => ({
+      ...tenant,
+      tenant_logo_url: logosByTenant.get(tenant.id) ?? null,
+    }));
   }
 
   async update(
@@ -75,6 +87,7 @@ export class TenantService {
     currentUser: CurrentJwtUser,
   ): Promise<Tenant> {
     const tenant = await this.findOne(id);
+    const previousIsActive = tenant.is_active;
 
     if (dto.slug !== undefined) {
       const normalizedSlug = dto.slug.trim().toLowerCase();
@@ -96,14 +109,23 @@ export class TenantService {
     }
 
     const updated = await this.tenantRepository.save(tenant);
+    const statusChanged = dto.is_active !== undefined && previousIsActive !== updated.is_active;
+    const action = statusChanged
+      ? updated.is_active
+        ? 'TENANT_ENABLED'
+        : 'TENANT_DISABLED'
+      : 'TENANT_UPDATED';
 
     await this.auditService.log({
       actor_user_id: currentUser.sub,
       tenant_id: null,
-      action: 'TENANT_UPDATED',
+      action,
       entity: 'tenant',
       entity_id: updated.id,
       metadata: {
+        name: updated.name,
+        slug: updated.slug,
+        is_active: updated.is_active,
         updated_fields: Object.keys(dto),
       },
     });
@@ -111,22 +133,30 @@ export class TenantService {
     return updated;
   }
 
-  async remove(id: string, currentUser: CurrentJwtUser): Promise<{ id: string }> {
-    const tenant = await this.findOne(id);
-    await this.tenantRepository.remove(tenant);
+  private async getTenantLogosByTenantId(
+    tenantIds: string[],
+  ): Promise<Map<string, string | null>> {
+    if (tenantIds.length === 0) {
+      return new Map();
+    }
 
-    await this.auditService.log({
-      actor_user_id: currentUser.sub,
-      tenant_id: null,
-      action: 'TENANT_DELETED',
-      entity: 'tenant',
-      entity_id: id,
-      metadata: {
-        name: tenant.name,
-        slug: tenant.slug,
-      },
-    });
+    const rows = await this.tenantSettingsRepository
+      .createQueryBuilder('settings')
+      .select('settings.tenant_id', 'tenant_id')
+      .addSelect('settings.logo_url', 'logo_url')
+      .where('settings.tenant_id IN (:...tenantIds)', { tenantIds })
+      .getRawMany<{
+        tenant_id: string;
+        logo_url: string | null;
+      }>();
 
-    return { id };
+    return new Map(rows.map((row) => {
+      const normalizedLogo = row.logo_url?.trim() || null;
+      const logoUrl =
+        normalizedLogo && normalizedLogo !== '/wegox-logo.svg'
+          ? normalizedLogo
+          : null;
+      return [row.tenant_id, logoUrl];
+    }));
   }
 }

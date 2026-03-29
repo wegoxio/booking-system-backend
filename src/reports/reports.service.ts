@@ -9,8 +9,6 @@ import {
 } from '../bookings/bookings.time-utils';
 import {
   BOOKING_REVENUE_STATUSES,
-  type BookingSource,
-  type BookingStatus,
 } from '../bookings/bookings.constants';
 import { Booking } from '../bookings/entities/booking.entity';
 import { BookingItem } from '../bookings/entities/booking-item.entity';
@@ -19,6 +17,8 @@ import { Tenant } from '../tenant/entities/tenant.entity';
 import { type ObjectLiteral, Repository, SelectQueryBuilder } from 'typeorm';
 import {
   REPORT_GROUP_BY_VALUES,
+  type ReportBookingSource,
+  type ReportBookingStatus,
   type ReportGroupBy,
   type ReportsOverviewQueryDto,
 } from './dto/reports-overview-query.dto';
@@ -42,8 +42,8 @@ type NormalizedReportsQuery = {
   tenantId: string | null;
   employeeId: string | null;
   serviceId: string | null;
-  source: BookingSource | null;
-  status: BookingStatus | null;
+  source: ReportBookingSource | null;
+  status: ReportBookingStatus | null;
   topLimit: number;
 };
 
@@ -456,9 +456,12 @@ export class ReportsService {
   private async buildSourceBreakdown(
     filters: NormalizedReportsQuery,
   ): Promise<ReportsSourceBreakdownRow[]> {
+    const sourceNormalizationExpression =
+      "CASE WHEN booking.source = 'WEB' THEN 'WEB' ELSE 'MANUAL' END";
+
     const qb = this.bookingsRepository
       .createQueryBuilder('booking')
-      .select('booking.source', 'source')
+      .select(sourceNormalizationExpression, 'source')
       .addSelect('COUNT(*)::int', 'bookings_count')
       .addSelect(
         `COUNT(*) FILTER (WHERE booking.status = 'COMPLETED')::int`,
@@ -473,7 +476,7 @@ export class ReportsService {
         'revenue_total_usd',
       )
       .setParameter('revenueStatuses', [...BOOKING_REVENUE_STATUSES])
-      .groupBy('booking.source')
+      .groupBy(sourceNormalizationExpression)
       .orderBy('bookings_count', 'DESC');
 
     this.applyBookingFilters(qb, filters, {
@@ -482,7 +485,7 @@ export class ReportsService {
     });
 
     const rows = await qb.getRawMany<{
-      source: BookingSource;
+      source: ReportBookingSource;
       bookings_count: string;
       completed_count: string;
       cancelled_count: string;
@@ -581,7 +584,11 @@ export class ReportsService {
     }
 
     if (filters.source) {
-      qb.andWhere(`${alias}.source = :source`, { source: filters.source });
+      if (filters.source === 'WEB') {
+        qb.andWhere(`${alias}.source = :sourceWeb`, { sourceWeb: 'WEB' });
+      } else {
+        qb.andWhere(`${alias}.source <> :sourceWeb`, { sourceWeb: 'WEB' });
+      }
     }
 
     if (includeStatusFilter && filters.status) {
@@ -1724,10 +1731,6 @@ export class ReportsService {
     switch (status) {
       case 'PENDING':
         return 'Pendiente';
-      case 'CONFIRMED':
-        return 'Confirmada';
-      case 'IN_PROGRESS':
-        return 'En progreso';
       case 'COMPLETED':
         return 'Completada';
       case 'CANCELLED':
@@ -1744,14 +1747,10 @@ export class ReportsService {
   ): string {
     if (!source) return 'Todos';
     switch (source) {
-      case 'ADMIN':
-        return 'Administrador';
       case 'WEB':
         return 'Web';
       case 'MANUAL':
         return 'Manual';
-      case 'API':
-        return 'API';
       default:
         return source;
     }
