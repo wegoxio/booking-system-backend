@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Param,
   Patch,
@@ -53,10 +52,5 @@ export class TenantController {
     @CurrentUser() currentUser: CurrentJwtUser,
   ) {
     return this.tenantService.update(id, data, currentUser);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string, @CurrentUser() currentUser: CurrentJwtUser) {
-    return this.tenantService.remove(id, currentUser);
   }
 }

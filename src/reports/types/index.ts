@@ -1,6 +1,9 @@
-import type { BookingSource, BookingStatus } from '../../bookings/bookings.constants';
 import type { UserRole } from '../../users/entities/user.entity';
-import type { ReportGroupBy } from '../dto/reports-overview-query.dto';
+import type {
+  ReportBookingSource,
+  ReportBookingStatus,
+  ReportGroupBy,
+} from '../dto/reports-overview-query.dto';
 
 export type ReportsSummary = {
   bookings_total: number;
@@ -50,7 +53,7 @@ export type ReportsTopEmployee = {
 };
 
 export type ReportsSourceBreakdownRow = {
-  source: BookingSource;
+  source: ReportBookingSource;
   bookings_count: number;
   completed_count: number;
   cancelled_count: number;
@@ -83,8 +86,8 @@ export type ReportsOverviewResponse = {
     tenant_id: string | null;
     employee_id: string | null;
     service_id: string | null;
-    source: BookingSource | null;
-    status: BookingStatus | null;
+    source: ReportBookingSource | null;
+    status: ReportBookingStatus | null;
     top_limit: number;
   };
   summary: ReportsSummary;

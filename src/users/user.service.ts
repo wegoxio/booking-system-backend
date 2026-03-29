@@ -115,6 +115,7 @@ export class UserService {
     currentUser: CurrentJwtUser,
   ): Promise<TenantAdminResponse> {
     const tenantAdmin = await this.findTenantAdminEntityById(id);
+    const previousIsActive = tenantAdmin.is_active;
 
     if (dto.email !== undefined) {
       const normalizedEmail = dto.email.trim().toLowerCase();
@@ -141,41 +142,29 @@ export class UserService {
 
     await this.usersRepo.save(tenantAdmin);
     const updatedTenantAdmin = await this.findTenantAdminEntityById(tenantAdmin.id);
+    const statusChanged =
+      dto.is_active !== undefined && previousIsActive !== updatedTenantAdmin.is_active;
+    const action = statusChanged
+      ? updatedTenantAdmin.is_active
+        ? 'TENANT_ADMIN_ENABLED'
+        : 'TENANT_ADMIN_DISABLED'
+      : 'TENANT_ADMIN_UPDATED';
 
     await this.auditService.log({
       actor_user_id: currentUser.sub,
       tenant_id: updatedTenantAdmin.tenant_id,
-      action: 'TENANT_ADMIN_UPDATED',
+      action,
       entity: 'user',
       entity_id: updatedTenantAdmin.id,
       metadata: {
+        name: updatedTenantAdmin.name,
+        email: updatedTenantAdmin.email,
+        is_active: updatedTenantAdmin.is_active,
         updated_fields: Object.keys(dto),
       },
     });
 
     return this.toTenantAdminResponse(updatedTenantAdmin);
-  }
-
-  async removeTenantAdmin(
-    id: string,
-    currentUser: CurrentJwtUser,
-  ): Promise<{ id: string }> {
-    const tenantAdmin = await this.findTenantAdminEntityById(id);
-    await this.usersRepo.remove(tenantAdmin);
-
-    await this.auditService.log({
-      actor_user_id: currentUser.sub,
-      tenant_id: tenantAdmin.tenant_id,
-      action: 'TENANT_ADMIN_DELETED',
-      entity: 'user',
-      entity_id: tenantAdmin.id,
-      metadata: {
-        name: tenantAdmin.name,
-        email: tenantAdmin.email,
-      },
-    });
-
-    return { id };
   }
 
   private async ensureTenantExists(tenantId: string): Promise<void> {

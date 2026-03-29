@@ -55,6 +55,10 @@ function buildByAction(action: string, metadata?: Record<string, any> | null): s
       return `Negocio "${metadata?.name ?? 'N/A'}" creado.`;
     case 'TENANT_UPDATED':
       return `Negocio actualizado (${listUpdatedFields(metadata)}).`;
+    case 'TENANT_ENABLED':
+      return `Negocio "${metadata?.name ?? 'N/A'}" habilitado.`;
+    case 'TENANT_DISABLED':
+      return `Negocio "${metadata?.name ?? 'N/A'}" deshabilitado.`;
     case 'TENANT_DELETED':
       return `Negocio "${metadata?.name ?? 'N/A'}" eliminado.`;
 
@@ -64,6 +68,10 @@ function buildByAction(action: string, metadata?: Record<string, any> | null): s
       return `Invitación enviada a "${metadata?.email ?? 'N/A'}".`;
     case 'TENANT_ADMIN_UPDATED':
       return `Administrador del negocio actualizado (${listUpdatedFields(metadata)}).`;
+    case 'TENANT_ADMIN_ENABLED':
+      return `Administrador del negocio "${metadata?.name ?? 'N/A'}" habilitado.`;
+    case 'TENANT_ADMIN_DISABLED':
+      return `Administrador del negocio "${metadata?.name ?? 'N/A'}" deshabilitado.`;
     case 'TENANT_ADMIN_DELETED':
       return `Administrador del negocio "${metadata?.name ?? 'N/A'}" eliminado.`;
 
