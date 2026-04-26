@@ -227,6 +227,7 @@ export function buildBookingLifecycleEmail(input: {
   const textPrimary = business.theme.textPrimary || '#1f2937';
   const textSecondary = business.theme.textSecondary || '#4b5563';
   const textTertiary = business.theme.textTertiary || '#6b7280';
+  const statusLabel = booking.status.replace(/_/g, ' ');
 
   const reasonMarkup = booking.cancellationReason
     ? `
@@ -259,59 +260,52 @@ export function buildBookingLifecycleEmail(input: {
     <style>
       @media screen and (max-width: 640px) {
         .email-wrapper {
-          padding: 14px 10px !important;
+          padding: 12px 8px !important;
         }
 
         .email-card {
-          border-radius: 22px !important;
+          border-radius: 18px !important;
         }
 
-        .email-hero,
+        .email-header,
         .email-section,
         .email-footer {
-          padding-left: 20px !important;
-          padding-right: 20px !important;
+          padding-left: 18px !important;
+          padding-right: 18px !important;
         }
 
-        .email-hero {
+        .email-header {
           padding-top: 24px !important;
-          padding-bottom: 18px !important;
+          padding-bottom: 20px !important;
         }
 
-        .mobile-stack,
-        .mobile-stack > tbody,
-        .mobile-stack > tbody > tr {
+        .stack-mobile,
+        .stack-mobile > tbody,
+        .stack-mobile > tbody > tr,
+        .stack-mobile > tbody > tr > td {
           display: block !important;
           width: 100% !important;
         }
 
-        .mobile-stack-cell {
-          display: block !important;
-          width: 100% !important;
-        }
-
-        .mobile-logo-cell,
-        .footer-meta-cell {
-          display: block !important;
-          width: 100% !important;
+        .logo-cell,
+        .footer-secondary {
           padding-left: 0 !important;
-          padding-top: 18px !important;
+          padding-top: 14px !important;
           text-align: left !important;
         }
 
         .hero-title {
-          font-size: 28px !important;
-          line-height: 1.18 !important;
+          font-size: 27px !important;
+          line-height: 1.2 !important;
         }
 
         .hero-copy {
           font-size: 14px !important;
-          line-height: 1.65 !important;
+          line-height: 1.6 !important;
         }
 
         .summary-grid td,
-        .service-row td,
-        .footer-branding td {
+        .service-row td {
           display: block !important;
           width: 100% !important;
           text-align: left !important;
@@ -325,43 +319,35 @@ export function buildBookingLifecycleEmail(input: {
           padding-top: 0 !important;
         }
 
-        .meta-pill {
-          display: block !important;
-          width: 100% !important;
-          margin: 8px 0 0 !important;
-          box-sizing: border-box !important;
+        .meta-chip {
+          margin-left: 0 !important;
+          margin-right: 8px !important;
         }
       }
     </style>
   </head>
   <body style="margin: 0; padding: 0; background: ${escapeHtml(withAlpha(secondary, 0.25))}; font-family: Arial, Helvetica, sans-serif; color: ${escapeHtml(textPrimary)}; word-break: break-word;">
-    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" class="email-wrapper" style="padding: 24px 12px; background: linear-gradient(180deg, ${escapeHtml(withAlpha(primary, 0.18))} 0%, ${escapeHtml(withAlpha(secondary, 0.18))} 100%);">
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" class="email-wrapper" style="padding: 20px 12px; background: linear-gradient(180deg, ${escapeHtml(withAlpha(primary, 0.14))} 0%, ${escapeHtml(withAlpha(secondary, 0.18))} 100%);">
       <tr>
         <td align="center">
-          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" class="email-card" style="max-width: 720px; background: #ffffff; border-radius: 28px; overflow: hidden; box-shadow: 0 22px 60px ${escapeHtml(withAlpha(primary, 0.18))};">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" class="email-card" style="max-width: 680px; background: #ffffff; border-radius: 24px; overflow: hidden; border: 1px solid ${escapeHtml(withAlpha(primary, 0.14))}; box-shadow: 0 18px 44px ${escapeHtml(withAlpha(primary, 0.14))};">
             <tr>
-              <td style="padding: 0; background: linear-gradient(135deg, ${escapeHtml(primary)} 0%, ${escapeHtml(withAlpha(primary, 0.84))} 100%);">
-                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" class="mobile-stack">
+              <td class="email-header" style="padding: 30px 30px 24px; background: linear-gradient(135deg, ${escapeHtml(primary)} 0%, ${escapeHtml(withAlpha(primary, 0.86))} 100%);">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" class="stack-mobile">
                   <tr>
-                    <td class="email-hero mobile-stack-cell" style="padding: 32px 32px 20px;">
+                    <td style="vertical-align: middle;">
                       <div style="display: inline-block; padding: 8px 14px; border-radius: 999px; background: ${escapeHtml(withAlpha('#ffffff', 0.18))}; color: #ffffff; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;">
                         ${escapeHtml(business.branding.appName || business.tenantName)}
                       </div>
-                      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" class="mobile-stack" style="margin-top: 18px;">
-                        <tr>
-                          <td class="mobile-stack-cell" style="vertical-align: middle;">
-                            <div class="hero-title" style="font-size: 32px; line-height: 1.2; font-weight: 800; color: #ffffff;">
-                              ${escapeHtml(headline)}
-                            </div>
-                            <div class="hero-copy" style="margin-top: 12px; font-size: 15px; line-height: 1.7; color: rgba(255,255,255,0.92);">
-                              ${escapeHtml(intro)}
-                            </div>
-                          </td>
-                          <td class="mobile-stack-cell mobile-logo-cell" align="right" style="vertical-align: top; padding-left: 16px;">
-                            <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(business.tenantName)}" style="max-width: 120px; max-height: 60px; object-fit: contain; border-radius: 12px; background: rgba(255,255,255,0.12); padding: 10px;" />
-                          </td>
-                        </tr>
-                      </table>
+                      <div class="hero-title" style="margin-top: 16px; font-size: 31px; line-height: 1.2; font-weight: 800; color: #ffffff;">
+                        ${escapeHtml(headline)}
+                      </div>
+                      <div class="hero-copy" style="margin-top: 12px; font-size: 15px; line-height: 1.7; color: rgba(255,255,255,0.92);">
+                        ${escapeHtml(intro)}
+                      </div>
+                    </td>
+                    <td class="logo-cell" align="right" style="vertical-align: top; padding-left: 16px;">
+                      <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(business.tenantName)}" style="max-width: 124px; max-height: 64px; object-fit: contain; border-radius: 12px; background: rgba(255,255,255,0.16); padding: 10px;" />
                     </td>
                   </tr>
                 </table>
@@ -369,44 +355,46 @@ export function buildBookingLifecycleEmail(input: {
             </tr>
 
             <tr>
-              <td class="email-section" style="padding: 28px 32px 12px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background: ${escapeHtml(withAlpha(secondary, 0.28))}; border: 1px solid ${escapeHtml(withAlpha(primary, 0.16))}; border-radius: 24px;">
+              <td class="email-section" style="padding: 26px 30px 0;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background: ${escapeHtml(withAlpha(secondary, 0.22))}; border: 1px solid ${escapeHtml(withAlpha(primary, 0.16))}; border-radius: 18px;">
                   <tr>
-                    <td style="padding: 24px;">
-                      <div style="font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: ${escapeHtml(tertiary)};">Resumen del booking</div>
-                      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" class="summary-grid" style="margin-top: 18px;">
+                    <td style="padding: 20px 20px 8px;">
+                      <div style="font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: ${escapeHtml(tertiary)};">Resumen de la cita</div>
+                      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" class="summary-grid" style="margin-top: 16px;">
                         <tr>
-                          <td style="padding: 0 0 10px; width: 50%; vertical-align: top;">
+                          <td style="padding: 0 0 12px; width: 50%; vertical-align: top;">
                             <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: ${escapeHtml(tertiary)};">Cliente</div>
                             <div style="margin-top: 6px; font-size: 15px; font-weight: 700; color: ${escapeHtml(textPrimary)};">${escapeHtml(booking.customerName)}</div>
-                            <div style="margin-top: 4px; font-size: 13px; color: ${escapeHtml(textSecondary)};">${escapeHtml(booking.customerEmail ?? booking.customerPhone ?? 'Sin contacto registrado')}</div>
                           </td>
-                          <td style="padding: 0 0 10px; width: 50%; vertical-align: top;">
+                          <td style="padding: 0 0 12px; width: 50%; vertical-align: top;">
                             <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: ${escapeHtml(tertiary)};">Profesional</div>
                             <div style="margin-top: 6px; font-size: 15px; font-weight: 700; color: ${escapeHtml(textPrimary)};">${escapeHtml(booking.employeeName)}</div>
-                            <div style="margin-top: 4px; font-size: 13px; color: ${escapeHtml(textSecondary)};">${escapeHtml(booking.employeeEmail)}</div>
                           </td>
                         </tr>
                         <tr>
-                          <td style="padding: 0 0 10px; width: 50%; vertical-align: top;">
+                          <td style="padding: 0 0 12px; width: 50%; vertical-align: top;">
                             <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: ${escapeHtml(tertiary)};">Inicio</div>
                             <div style="margin-top: 6px; font-size: 14px; line-height: 1.7; color: ${escapeHtml(textPrimary)};">${escapeHtml(startAtText)}</div>
                           </td>
-                          <td style="padding: 0 0 10px; width: 50%; vertical-align: top;">
+                          <td style="padding: 0 0 12px; width: 50%; vertical-align: top;">
                             <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: ${escapeHtml(tertiary)};">Fin</div>
                             <div style="margin-top: 6px; font-size: 14px; line-height: 1.7; color: ${escapeHtml(textPrimary)};">${escapeHtml(endAtText)}</div>
                           </td>
                         </tr>
                         <tr>
-                          <td style="padding: 0 0 10px; width: 50%; vertical-align: top;">
+                          <td style="padding: 0 0 12px; width: 50%; vertical-align: top;">
                             <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: ${escapeHtml(tertiary)};">Duracion total</div>
                             <div style="margin-top: 6px; font-size: 14px; line-height: 1.7; color: ${escapeHtml(textPrimary)};">${escapeHtml(formatDuration(booking.durationMinutes))}</div>
                           </td>
-                          <td style="padding: 0 0 10px; width: 50%; vertical-align: top;">
+                          <td style="padding: 0 0 12px; width: 50%; vertical-align: top;">
                             <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: ${escapeHtml(tertiary)};">Estado actual</div>
-                            <div style="margin-top: 6px; font-size: 14px; line-height: 1.7; color: ${escapeHtml(textPrimary)};">${escapeHtml(booking.status)}</div>
+                            <span style="display: inline-block; margin-top: 7px; padding: 5px 11px; border-radius: 999px; border: 1px solid ${escapeHtml(withAlpha(primary, 0.2))}; background: ${escapeHtml(withAlpha(primary, 0.13))}; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: ${escapeHtml(textPrimary)};">
+                              ${escapeHtml(statusLabel)}
+                            </span>
                           </td>
                         </tr>
+                      </table>
+                      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 2px;">
                         ${reasonMarkup}
                         ${notesMarkup}
                       </table>
@@ -417,10 +405,10 @@ export function buildBookingLifecycleEmail(input: {
             </tr>
 
             <tr>
-              <td class="email-section" style="padding: 8px 32px 0;">
+              <td class="email-section" style="padding: 14px 30px 0;">
                 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                   <tr>
-                    <td style="padding: 22px 24px; border: 1px solid ${escapeHtml(withAlpha(primary, 0.16))}; border-radius: 24px; background: #ffffff;">
+                    <td style="padding: 20px 20px; border: 1px solid ${escapeHtml(withAlpha(primary, 0.16))}; border-radius: 18px; background: #ffffff;">
                       <div style="font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: ${escapeHtml(tertiary)};">Servicios incluidos</div>
                       <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 12px; border-collapse: collapse;">
                         ${buildServicesMarkup(booking)}
@@ -438,39 +426,25 @@ export function buildBookingLifecycleEmail(input: {
             </tr>
 
             <tr>
-              <td class="email-footer" style="padding: 24px 32px 30px; background: linear-gradient(180deg, ${escapeHtml(withAlpha(secondary, 0.22))} 0%, #ffffff 100%); border-top: 1px solid ${escapeHtml(withAlpha(primary, 0.12))};">
-                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" class="footer-branding">
+              <td class="email-footer" style="padding: 24px 30px 28px; background: linear-gradient(180deg, ${escapeHtml(withAlpha(secondary, 0.2))} 0%, #ffffff 100%); border-top: 1px solid ${escapeHtml(withAlpha(primary, 0.12))};">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" class="stack-mobile">
                   <tr>
                     <td style="vertical-align: top;">
-                      <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
-                        <tr>
-                          <td width="76" style="padding-right: 14px; vertical-align: top;">
-                            <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(business.tenantName)}" style="width: 58px; height: 58px; object-fit: contain; border-radius: 16px; background: ${escapeHtml(withAlpha('#ffffff', 0.9))}; border: 1px solid ${escapeHtml(withAlpha(primary, 0.14))}; padding: 8px;" />
-                          </td>
-                          <td style="vertical-align: top;">
-                            <div style="font-size: 16px; font-weight: 800; color: ${escapeHtml(textPrimary)};">${escapeHtml(business.tenantName)}</div>
-                            <div style="margin-top: 6px; font-size: 12px; line-height: 1.7; color: ${escapeHtml(textSecondary)};">
-                              Todos los derechos reservados &copy; ${currentYear}. Este correo fue generado automaticamente por ${escapeHtml(business.branding.appName || business.tenantName)}.
-                            </div>
-                            <div style="margin-top: 10px; font-size: 12px; line-height: 1.7; color: ${escapeHtml(textTertiary)};">
-                              Impulsado por Wegox para reservas, agenda y operaciones del negocio.
-                            </div>
-                          </td>
-                        </tr>
-                      </table>
+                      <div style="font-size: 16px; font-weight: 800; color: ${escapeHtml(textPrimary)};">${escapeHtml(business.tenantName)}</div>
+                      <div style="margin-top: 6px; font-size: 12px; line-height: 1.7; color: ${escapeHtml(textSecondary)};">
+                        Todos los derechos reservados &copy; ${currentYear}. Este correo fue generado automaticamente por ${escapeHtml(business.branding.appName || business.tenantName)}.
+                      </div>
+                      <div style="margin-top: 8px; font-size: 12px; line-height: 1.7; color: ${escapeHtml(textTertiary)};">
+                        Impulsado por Wegox para reservas, agenda y operaciones del negocio.
+                      </div>
                     </td>
-                    <td class="footer-meta-cell" align="right" style="vertical-align: top; padding-left: 18px;">
+                    <td class="footer-secondary" align="right" style="vertical-align: top; padding-left: 18px;">
                       <div style="display: inline-block; padding: 8px 14px; border-radius: 999px; background: ${escapeHtml(withAlpha(primary, 0.12))}; color: ${escapeHtml(textPrimary)}; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;">
                         Powered by Wegox
                       </div>
-                      <div style="margin-top: 12px;">
-                        <span class="meta-pill" style="display: inline-block; max-width: 100%; margin: 0 0 0 8px; padding: 9px 12px; border-radius: 12px; background: #ffffff; border: 1px solid ${escapeHtml(withAlpha(primary, 0.14))}; font-size: 12px; line-height: 1.5; color: ${escapeHtml(textSecondary)}; word-break: break-word;">
-                          Booking ID: ${escapeHtml(booking.bookingId)}
-                        </span>
-                        <span class="meta-pill" style="display: inline-block; margin: 8px 0 0 8px; padding: 9px 12px; border-radius: 12px; background: #ffffff; border: 1px solid ${escapeHtml(withAlpha(primary, 0.14))}; font-size: 12px; line-height: 1.5; color: ${escapeHtml(textSecondary)};">
-                          Fuente: ${escapeHtml(booking.source)}
-                        </span>
-                      </div>
+                      <span class="meta-chip" style="display: inline-block; margin: 10px 0 0 8px; padding: 9px 12px; border-radius: 12px; background: #ffffff; border: 1px solid ${escapeHtml(withAlpha(primary, 0.14))}; font-size: 12px; line-height: 1.5; color: ${escapeHtml(textSecondary)};">
+                        Fuente: ${escapeHtml(booking.source)}
+                      </span>
                     </td>
                   </tr>
                 </table>
@@ -494,7 +468,7 @@ export function buildBookingLifecycleEmail(input: {
     `Profesional: ${booking.employeeName}`,
     `Inicio: ${startAtText}`,
     `Fin: ${endAtText}`,
-    `Estado: ${booking.status}`,
+    `Estado: ${statusLabel}`,
     `Duracion: ${formatDuration(booking.durationMinutes)}`,
     `Total: ${formatMoney(booking.totalPrice, booking.currency)}`,
     booking.cancellationReason ? `Motivo: ${booking.cancellationReason}` : '',
@@ -508,7 +482,7 @@ export function buildBookingLifecycleEmail(input: {
     '',
     `Negocio: ${business.tenantName}`,
     `Powered by Wegox`,
-    `Booking ID: ${booking.bookingId}`,
+    `Fuente: ${booking.source}`,
   ]
     .filter(Boolean)
     .join('\n');
