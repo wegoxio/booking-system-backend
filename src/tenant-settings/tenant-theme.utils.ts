@@ -73,6 +73,27 @@ function darkenHex(value: string, amount: number) {
   return mixHex(value, '#000000', amount);
 }
 
+function getRelativeLuminance(value: string) {
+  const { r, g, b } = hexToRgb(value);
+  const [red, green, blue] = [r, g, b].map((channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.03928
+      ? normalized / 12.92
+      : ((normalized + 0.055) / 1.055) ** 2.4;
+  });
+
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+function deriveSidebarHover(baseSidebarColor: string) {
+  const luminance = getRelativeLuminance(baseSidebarColor);
+  if (luminance < 0.28) {
+    return lightenHex(baseSidebarColor, 0.14);
+  }
+
+  return darkenHex(baseSidebarColor, 0.16);
+}
+
 export function normalizeThemeSettings(theme: ThemeInput): TenantThemeSettings {
   const primary = getColor(
     theme,
@@ -106,7 +127,7 @@ export function normalizeThemeSettings(theme: ThemeInput): TenantThemeSettings {
     tertiary,
     primaryHover: darkenHex(primary, 0.12),
     secondaryHover: lightenHex(secondary, 0.14),
-    tertiaryHover: darkenHex(tertiary, 0.16),
+    tertiaryHover: deriveSidebarHover(tertiary),
     textPrimary,
     textSecondary,
     textTertiary: mixHex(textSecondary, secondary, 0.35),

@@ -51,6 +51,11 @@ type ValidatedAssetFile = {
   contentType: string;
 };
 
+type TenantSettingsSnapshot = Pick<
+  TenantSettingsResponse,
+  'theme' | 'themeMode' | 'themeOverrides' | 'branding'
+>;
+
 @Injectable()
 export class TenantSettingsService {
   private readonly logger = new Logger(TenantSettingsService.name);
@@ -184,13 +189,11 @@ export class TenantSettingsService {
       throw new BadRequestException('El contexto del negocio es obligatorio.');
     }
 
-    const settings = await this.getOrCreateByTenantId(currentUser.tenant_id);
-    return serializeSettings(settings);
+    return this.resolveSettingsForTenantId(currentUser.tenant_id);
   }
 
   async findByTenantId(tenantId: string): Promise<TenantSettingsResponse> {
-    const settings = await this.getOrCreateByTenantId(tenantId);
-    return serializeSettings(settings);
+    return this.resolveSettingsForTenantId(tenantId);
   }
 
   async findPublicByBusinessSlug(
@@ -209,12 +212,9 @@ export class TenantSettingsService {
       throw new NotFoundException('No se encontró el negocio');
     }
 
-    const tenantSettings = await this.tenantSettingsRepository.findOne({
-      where: { tenant_id: business.id },
-    });
+    const tenantSettings = await this.getExistingTenantSettings(business.id);
 
     if (tenantSettings) {
-      ensureSettingsDefaults(tenantSettings);
       return this.toPublicBusinessSettings(
         { ...serializeSettings(tenantSettings), tenant_id: business.id },
         business,
@@ -249,28 +249,57 @@ export class TenantSettingsService {
     dto: UpdateTenantSettingsDto,
     currentUser: CurrentJwtUser,
   ): Promise<TenantSettingsResponse> {
-    const settings = await this.getOrCreateByTenantId(tenantId);
+    await this.ensureTenantExists(tenantId);
 
-    if (dto.theme) {
-      applyThemeSettings(
-        settings,
-        normalizeThemeSettings({
-          ...serializeSettings(settings).theme,
-          ...dto.theme,
-        }),
-      );
+    const [platformSettings, existingSettings] = await Promise.all([
+      this.getOrCreatePlatformSettings(),
+      this.getExistingTenantSettings(tenantId),
+    ]);
+
+    const platformSerialized = serializeSettings(platformSettings);
+    const baseSerialized = existingSettings
+      ? serializeSettings(existingSettings)
+      : { ...platformSerialized, tenant_id: tenantId };
+    const nextSnapshot = this.mergeSnapshotWithPatch(
+      this.extractSnapshot(baseSerialized),
+      dto,
+    );
+
+    if (
+      !existingSettings &&
+      this.areSnapshotsEqual(nextSnapshot, this.extractSnapshot(platformSerialized))
+    ) {
+      return {
+        ...platformSerialized,
+        tenant_id: tenantId,
+      };
     }
 
-    if (dto.themeMode) {
-      applyThemeMode(settings, dto.themeMode);
-    }
+    const settings =
+      existingSettings ??
+      this.createTenantSettingsFromPlatform(tenantId, platformSettings);
+    this.applySnapshot(settings, nextSnapshot);
 
-    if (dto.themeOverrides) {
-      applyThemeOverrides(settings, dto.themeOverrides);
-    }
+    if (this.isRedundantTenantOverride(settings, platformSerialized)) {
+      if (existingSettings) {
+        await this.tenantSettingsRepository.remove(existingSettings);
 
-    if (dto.branding) {
-      applyBrandingSettings(settings, dto.branding);
+        await this.auditService.log({
+          actor_user_id: currentUser.sub,
+          tenant_id: tenantId,
+          action: 'TENANT_SETTINGS_RESET_TO_PLATFORM',
+          entity: 'tenant_settings',
+          entity_id: existingSettings.id,
+          metadata: {
+            updated_fields: Object.keys(dto),
+          },
+        });
+      }
+
+      return {
+        ...platformSerialized,
+        tenant_id: tenantId,
+      };
     }
 
     const updated = await this.tenantSettingsRepository.save(settings);
@@ -313,8 +342,14 @@ export class TenantSettingsService {
     currentUser: CurrentJwtUser,
   ): Promise<TenantSettingsResponse> {
     const validatedFile = this.validateUploadedAsset(file, assetType, 'tenant');
-
-    const settings = await this.getOrCreateByTenantId(tenantId);
+    await this.ensureTenantExists(tenantId);
+    const [platformSettings, existingSettings] = await Promise.all([
+      this.getOrCreatePlatformSettings(),
+      this.getExistingTenantSettings(tenantId),
+    ]);
+    const settings =
+      existingSettings ??
+      this.createTenantSettingsFromPlatform(tenantId, platformSettings);
     const extension = validatedFile.extension;
     const objectKey = this.buildTenantAssetObjectKey(
       tenantId,
@@ -372,26 +407,153 @@ export class TenantSettingsService {
     return serializeSettings(updated);
   }
 
-  private async getOrCreateByTenantId(tenantId: string): Promise<TenantSetting> {
+  private async resolveSettingsForTenantId(
+    tenantId: string,
+  ): Promise<TenantSettingsResponse> {
     await this.ensureTenantExists(tenantId);
 
-    const existingSettings = await this.tenantSettingsRepository.findOne({
+    const tenantSettings = await this.getExistingTenantSettings(tenantId);
+    if (tenantSettings) {
+      return serializeSettings(tenantSettings);
+    }
+
+    const platformSettings = await this.getOrCreatePlatformSettings();
+    return {
+      ...serializeSettings(platformSettings),
+      tenant_id: tenantId,
+    };
+  }
+
+  private async getExistingTenantSettings(
+    tenantId: string,
+  ): Promise<TenantSetting | null> {
+    const settings = await this.tenantSettingsRepository.findOne({
       where: { tenant_id: tenantId },
     });
 
-    if (existingSettings) {
-      ensureSettingsDefaults(existingSettings);
-      return existingSettings;
+    if (!settings) {
+      return null;
     }
 
+    ensureSettingsDefaults(settings);
+    return settings;
+  }
+
+  private createTenantSettingsFromPlatform(
+    tenantId: string,
+    platformSettings: PlatformSetting,
+  ): TenantSetting {
+    const platformSnapshot = this.extractSnapshot(serializeSettings(platformSettings));
     const settings = this.tenantSettingsRepository.create({
       tenant_id: tenantId,
       logo_key: null,
       favicon_key: null,
     });
-    applyDefaultSettings(settings);
 
-    return this.tenantSettingsRepository.save(settings);
+    this.applySnapshot(settings, platformSnapshot);
+    return settings;
+  }
+
+  private extractSnapshot(
+    settings: TenantSettingsResponse,
+  ): TenantSettingsSnapshot {
+    return {
+      theme: { ...settings.theme },
+      themeMode: settings.themeMode,
+      themeOverrides: { ...settings.themeOverrides },
+      branding: { ...settings.branding },
+    };
+  }
+
+  private mergeSnapshotWithPatch(
+    base: TenantSettingsSnapshot,
+    patch: UpdateTenantSettingsDto,
+  ): TenantSettingsSnapshot {
+    return {
+      theme: patch.theme
+        ? normalizeThemeSettings({
+            ...base.theme,
+            ...patch.theme,
+          })
+        : { ...base.theme },
+      themeMode: patch.themeMode ?? base.themeMode,
+      themeOverrides: patch.themeOverrides
+        ? { ...patch.themeOverrides }
+        : { ...base.themeOverrides },
+      branding: patch.branding
+        ? {
+            appName: patch.branding.appName ?? base.branding.appName,
+            windowTitle: patch.branding.windowTitle ?? base.branding.windowTitle,
+            logoUrl: patch.branding.logoUrl ?? base.branding.logoUrl,
+            faviconUrl: patch.branding.faviconUrl ?? base.branding.faviconUrl,
+          }
+        : { ...base.branding },
+    };
+  }
+
+  private applySnapshot(
+    settings: TenantSetting,
+    snapshot: TenantSettingsSnapshot,
+  ): void {
+    applyThemeSettings(settings, snapshot.theme);
+    applyThemeMode(settings, snapshot.themeMode);
+    applyThemeOverrides(settings, snapshot.themeOverrides);
+    applyBrandingSettings(settings, snapshot.branding);
+  }
+
+  private areSnapshotsEqual(
+    left: TenantSettingsSnapshot,
+    right: TenantSettingsSnapshot,
+  ): boolean {
+    return (
+      left.theme.primary === right.theme.primary &&
+      left.theme.secondary === right.theme.secondary &&
+      left.theme.tertiary === right.theme.tertiary &&
+      left.theme.primaryHover === right.theme.primaryHover &&
+      left.theme.secondaryHover === right.theme.secondaryHover &&
+      left.theme.tertiaryHover === right.theme.tertiaryHover &&
+      left.theme.textPrimary === right.theme.textPrimary &&
+      left.theme.textSecondary === right.theme.textSecondary &&
+      left.theme.textTertiary === right.theme.textTertiary &&
+      left.themeMode === right.themeMode &&
+      left.branding.appName === right.branding.appName &&
+      left.branding.windowTitle === right.branding.windowTitle &&
+      left.branding.logoUrl === right.branding.logoUrl &&
+      left.branding.faviconUrl === right.branding.faviconUrl &&
+      this.areStringMapsEqual(left.themeOverrides, right.themeOverrides)
+    );
+  }
+
+  private areStringMapsEqual(
+    left: Record<string, string>,
+    right: Record<string, string>,
+  ): boolean {
+    const leftEntries = Object.entries(left).sort(([a], [b]) => a.localeCompare(b));
+    const rightEntries = Object.entries(right).sort(([a], [b]) => a.localeCompare(b));
+
+    if (leftEntries.length !== rightEntries.length) {
+      return false;
+    }
+
+    return leftEntries.every(
+      ([leftKey, leftValue], index) =>
+        leftKey === rightEntries[index][0] &&
+        leftValue === rightEntries[index][1],
+    );
+  }
+
+  private isRedundantTenantOverride(
+    tenantSettings: TenantSetting,
+    platformSettings: TenantSettingsResponse,
+  ): boolean {
+    if (tenantSettings.logo_key || tenantSettings.favicon_key) {
+      return false;
+    }
+
+    const tenantSnapshot = this.extractSnapshot(serializeSettings(tenantSettings));
+    const platformSnapshot = this.extractSnapshot(platformSettings);
+
+    return this.areSnapshotsEqual(tenantSnapshot, platformSnapshot);
   }
 
   private async getOrCreatePlatformSettings(): Promise<PlatformSetting> {

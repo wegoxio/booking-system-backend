@@ -6,12 +6,12 @@ export enum TenantSettingsAssetType {
 export const PLATFORM_SETTINGS_SCOPE = 'WEGOX';
 
 export const DEFAULT_THEME_SETTINGS: Record<string, string> = {
-  primary: '#efc35f',
+  primary: '#9759ef',
   secondary: '#e9e9ed',
-  tertiary: '#5f6470',
-  primaryHover: '#d6ad50',
+  tertiary: '#1e1e1e',
+  primaryHover: '#844ed2',
   secondaryHover: '#ececef',
-  tertiaryHover: '#4a4f5b',
+  tertiaryHover: '#3d3d3d',
   textPrimary: '#2f3543',
   textSecondary: '#2d313b',
   textTertiary: '#6f7380',
@@ -24,9 +24,9 @@ export const DEFAULT_THEME_OVERRIDES: Record<string, string> = {};
 export const THEME_MODE_VALUES = ['AUTO', 'ADVANCED'] as const;
 
 export const DEFAULT_BRANDING_SETTINGS: Record<string, string> = {
-  appName: 'wegox',
-  windowTitle: 'Wegox Booking System',
-  logoUrl: '/wegox-logo.svg',
+  appName: 'Bukky',
+  windowTitle: 'Bukky Booking System',
+  logoUrl: '/bukky-logo.svg',
   faviconUrl: '/favicon.ico',
 };
 
