@@ -153,7 +153,7 @@ export class TenantService {
     return new Map(rows.map((row) => {
       const normalizedLogo = row.logo_url?.trim() || null;
       const logoUrl =
-        normalizedLogo && normalizedLogo !== '/wegox-logo.svg'
+        normalizedLogo && normalizedLogo !== '/bukky-logo.svg'
           ? normalizedLogo
           : null;
       return [row.tenant_id, logoUrl];

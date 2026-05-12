@@ -140,7 +140,7 @@ export class AccountAccessService {
     await this.notificationsService.sendPasswordResetEmail({
       email: user.email,
       name: user.name,
-      businessName: user.tenant?.name ?? 'Wegox Booking',
+      businessName: user.tenant?.name ?? 'Bukky Booking',
       resetUrl,
       expiresAt: createdToken.expiresAt,
       idempotencyKey: this.buildEmailIdempotencyKey(

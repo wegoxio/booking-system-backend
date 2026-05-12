@@ -37,7 +37,7 @@ export class NormalizeSettingsColumns1773400000000
           "text_tertiary_color" = COALESCE("theme"->>'textTertiary', "theme"->>'textMuted', "theme"->>'iconButtonText', '#6f7380'),
           "app_name" = COALESCE("branding"->>'appName', 'wegox'),
           "window_title" = COALESCE("branding"->>'windowTitle', 'Wegox Booking System'),
-          "logo_url" = COALESCE("branding"->>'logoUrl', '/wegox-logo.svg'),
+          "logo_url" = COALESCE("branding"->>'logoUrl', '/bukky-logo.svg'),
           "favicon_url" = COALESCE("branding"->>'faviconUrl', '/favicon.ico')`,
     );
 
@@ -93,7 +93,7 @@ export class NormalizeSettingsColumns1773400000000
           "text_tertiary_color" = COALESCE("theme"->>'textTertiary', "theme"->>'textMuted', "theme"->>'iconButtonText', '#6f7380'),
           "app_name" = COALESCE("branding"->>'appName', 'wegox'),
           "window_title" = COALESCE("branding"->>'windowTitle', 'Wegox Booking System'),
-          "logo_url" = COALESCE("branding"->>'logoUrl', '/wegox-logo.svg'),
+          "logo_url" = COALESCE("branding"->>'logoUrl', '/bukky-logo.svg'),
           "favicon_url" = COALESCE("branding"->>'faviconUrl', '/favicon.ico')`,
     );
 
