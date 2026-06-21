@@ -7,7 +7,11 @@ import { EmployeesController } from './employees.controller';
 import { EmployeesService } from './employees.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Employee]), AuditModule, TenantSettingsModule],
+  imports: [
+    TypeOrmModule.forFeature([Employee]),
+    AuditModule,
+    TenantSettingsModule,
+  ],
   controllers: [EmployeesController],
   providers: [EmployeesService],
   exports: [EmployeesService],

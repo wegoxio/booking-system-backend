@@ -13,14 +13,19 @@ function trimToMaxLength(value: string): string {
 
 function listUpdatedFields(metadata?: Record<string, any> | null): string {
   const fields = Array.isArray(metadata?.updated_fields)
-    ? metadata.updated_fields.filter((field: unknown) => typeof field === 'string')
+    ? metadata.updated_fields.filter(
+        (field: unknown) => typeof field === 'string',
+      )
     : [];
 
   if (fields.length === 0) return 'campos no especificados';
   return fields.slice(0, 5).join(', ');
 }
 
-function buildByAction(action: string, metadata?: Record<string, any> | null): string {
+function buildByAction(
+  action: string,
+  metadata?: Record<string, any> | null,
+): string {
   switch (action) {
     case 'AUTH_LOGIN_SUCCESS':
       return 'Inicio de sesión exitoso.';

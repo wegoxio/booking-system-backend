@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class NormalizeSettingsColumns1773400000000
-  implements MigrationInterface
-{
+export class NormalizeSettingsColumns1773400000000 implements MigrationInterface {
   name = 'NormalizeSettingsColumns1773400000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

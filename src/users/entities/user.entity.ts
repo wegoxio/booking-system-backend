@@ -5,8 +5,8 @@ import { BaseEntity } from '../../common/entities/base.entity';
 export type UserRole = 'SUPER_ADMIN' | 'TENANT_ADMIN';
 
 @Entity('users')
+@Index('IDX_users_tenant_role_active', ['tenant_id', 'role', 'is_active'])
 export class User extends BaseEntity {
-
   @Column()
   name: string;
 
@@ -18,7 +18,7 @@ export class User extends BaseEntity {
   password_hash: string | null;
 
   @Column({
-    type: 'varchar'
+    type: 'varchar',
   })
   role: UserRole;
 

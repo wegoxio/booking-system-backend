@@ -13,6 +13,7 @@ import {
 
 @Entity('employees')
 @Unique('UQ_employees_tenant_email', ['tenant_id', 'email'])
+@Index('IDX_employees_tenant_active_name', ['tenant_id', 'is_active', 'name'])
 export class Employee extends BaseEntity {
   @Index('IDX_employees_tenant_id')
   @Column({ type: 'uuid' })

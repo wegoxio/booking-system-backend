@@ -51,4 +51,3 @@ export class ListAuditLogsQueryDto {
   @Max(200)
   limit?: number;
 }
-

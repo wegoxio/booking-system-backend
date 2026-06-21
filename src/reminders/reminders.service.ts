@@ -181,7 +181,7 @@ export class RemindersService {
         const recipientName =
           audience === 'CUSTOMER'
             ? reminder.booking.customer_name
-            : reminder.booking.employee?.name ?? 'Profesional';
+            : (reminder.booking.employee?.name ?? 'Profesional');
 
         await this.notificationsService.sendBookingReminderNotification({
           booking: reminder.booking,
@@ -381,7 +381,9 @@ export class RemindersService {
       return new Set();
     }
 
-    const bookingIds = [...new Set(candidates.map((candidate) => candidate.booking_id))];
+    const bookingIds = [
+      ...new Set(candidates.map((candidate) => candidate.booking_id)),
+    ];
     const existing = await this.remindersRepository.find({
       where: {
         booking_id: In(bookingIds),
@@ -550,7 +552,9 @@ export class RemindersService {
     });
 
     const parts = formatter.formatToParts(now);
-    const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    const map = Object.fromEntries(
+      parts.map((part) => [part.type, part.value]),
+    );
 
     return {
       hour: Number(map.hour),
@@ -563,7 +567,10 @@ export class RemindersService {
   }
 
   private getReminderTimezone(): string {
-    return this.configService.get<string>('REMINDERS_TIMEZONE', 'America/Caracas');
+    return this.configService.get<string>(
+      'REMINDERS_TIMEZONE',
+      'America/Caracas',
+    );
   }
 
   private getReminderDispatchHour(): number {
@@ -607,7 +614,10 @@ export class RemindersService {
       return false;
     }
 
-    const candidate = error as { code?: string; driverError?: { code?: string } };
+    const candidate = error as {
+      code?: string;
+      driverError?: { code?: string };
+    };
     return (
       candidate.code === '23505' || candidate.driverError?.code === '23505'
     );

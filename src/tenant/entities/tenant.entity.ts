@@ -1,10 +1,8 @@
 import { BaseEntity } from '../../common/entities/base.entity';
 import { Column, Entity, Index } from 'typeorm';
 
-
 @Entity('tenants')
 export class Tenant extends BaseEntity {
-
   @Column()
   name: string;
 
@@ -14,7 +12,7 @@ export class Tenant extends BaseEntity {
 
   @Column({
     type: 'boolean',
-    default: true
+    default: true,
   })
   is_active: boolean;
 }

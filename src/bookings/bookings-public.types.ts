@@ -11,6 +11,10 @@ export type PublicBookingService = {
   description: string | null;
   instructions: string | null;
   duration_minutes: number;
+  capacity: number;
+  min_capacity: number;
+  max_capacity: number;
+  requires_confirmation: boolean;
   price: string;
   currency: string;
   is_active: boolean;
@@ -34,6 +38,7 @@ export type PublicBookingConfirmation = {
   start_at_utc: string;
   end_at_utc: string;
   total_duration_minutes: number;
+  party_size: number;
   total_price: string;
   currency: string;
   customer_name: string;

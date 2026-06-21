@@ -11,6 +11,7 @@ import {
   IsString,
   IsUUID,
   Length,
+  Matches,
   Max,
   Min,
 } from 'class-validator';
@@ -48,7 +49,20 @@ export class CreateServiceDto {
   @IsOptional()
   @IsInt()
   @IsPositive()
+  @Max(100)
   capacity?: number = 1;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  min_capacity?: number = 1;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  max_capacity?: number = 1;
 
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
@@ -57,6 +71,7 @@ export class CreateServiceDto {
   @IsOptional()
   @IsString()
   @Length(3, 3)
+  @Matches(/^[A-Za-z]{3}$/)
   currency?: string = 'USD';
 
   @IsOptional()

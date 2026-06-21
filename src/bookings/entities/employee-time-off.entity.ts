@@ -1,15 +1,14 @@
 import { TenantBaseEntity } from '../../common/entities/tenant-base-entity';
 import { Employee } from '../../employees/entities/employee.entity';
-import {
-  Column,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 @Entity('employee_time_off')
-@Index('IDX_employee_time_off_range', ['tenant_id', 'employee_id', 'start_at_utc', 'end_at_utc'])
+@Index('IDX_employee_time_off_range', [
+  'tenant_id',
+  'employee_id',
+  'start_at_utc',
+  'end_at_utc',
+])
 export class EmployeeTimeOff extends TenantBaseEntity {
   @Index('IDX_employee_time_off_employee_id')
   @Column({ type: 'uuid' })

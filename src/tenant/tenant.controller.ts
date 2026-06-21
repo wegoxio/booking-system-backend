@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
@@ -14,6 +15,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { TenantService } from './tenant.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 type CurrentJwtUser = {
   sub: string;
@@ -28,8 +30,8 @@ export class TenantController {
   constructor(private readonly tenantService: TenantService) {}
 
   @Get()
-  findAll() {
-    return this.tenantService.findAll();
+  findAll(@Query() query: PaginationQueryDto) {
+    return this.tenantService.findAll(query);
   }
 
   @Get(':id')

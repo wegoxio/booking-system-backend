@@ -1,5 +1,5 @@
-import { SetMetadata } from "@nestjs/common";
+import { SetMetadata } from '@nestjs/common';
 
 export const ROLES_KEY = 'roles';
 export const Roles = (...roles: Array<'SUPER_ADMIN' | 'TENANT_ADMIN'>) =>
-    SetMetadata(ROLES_KEY, roles);
+  SetMetadata(ROLES_KEY, roles);

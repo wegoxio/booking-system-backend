@@ -6,4 +6,3 @@ import { TurnstileService } from './turnstile.service';
   exports: [TurnstileService],
 })
 export class CaptchaModule {}
-

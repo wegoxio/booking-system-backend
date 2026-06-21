@@ -37,6 +37,7 @@ function createService(overrides: Partial<Service> = {}): Service {
     created_at: new Date('2026-03-10T10:00:00.000Z'),
     updated_at: new Date('2026-03-10T10:00:00.000Z'),
     tenant_id: 'tenant-1',
+    idempotency_key: null,
     tenant: undefined as never,
     name: 'Corte clasico',
     description: 'Servicio base',
@@ -45,6 +46,8 @@ function createService(overrides: Partial<Service> = {}): Service {
     buffer_before_minutes: 5,
     buffer_after_minutes: 5,
     capacity: 1,
+    min_capacity: 1,
+    max_capacity: 1,
     price: '15.00',
     currency: 'USD',
     is_active: true,
@@ -57,7 +60,10 @@ function createService(overrides: Partial<Service> = {}): Service {
   };
 }
 
-function createEmployee(service: Service, overrides: Partial<Employee> = {}): Employee {
+function createEmployee(
+  service: Service,
+  overrides: Partial<Employee> = {},
+): Employee {
   return {
     id: 'employee-1',
     created_at: new Date('2026-03-10T10:00:00.000Z'),
@@ -101,7 +107,10 @@ function createBookingItem(overrides: Partial<BookingItem> = {}): BookingItem {
   };
 }
 
-function createBooking(employee: Employee, overrides: Partial<Booking> = {}): Booking {
+function createBooking(
+  employee: Employee,
+  overrides: Partial<Booking> = {},
+): Booking {
   return {
     id: 'booking-1',
     created_at: new Date('2026-03-18T10:00:00.000Z'),
@@ -112,13 +121,16 @@ function createBooking(employee: Employee, overrides: Partial<Booking> = {}): Bo
     tenant: undefined as never,
     start_at_utc: new Date('2026-03-20T14:00:00.000Z'),
     end_at_utc: new Date('2026-03-20T14:40:00.000Z'),
+    busy_start_at_utc: new Date('2026-03-20T13:55:00.000Z'),
+    busy_end_at_utc: new Date('2026-03-20T14:35:00.000Z'),
     status: 'CONFIRMED',
     completed_at_utc: null,
     completed_by_user_id: null,
     cancelled_at_utc: null,
     cancelled_by_user_id: null,
     cancellation_reason: null,
-    total_duration_minutes: 40,
+    total_duration_minutes: 30,
+    party_size: 1,
     total_price: '15.00',
     currency: 'USD',
     customer_name: 'Carlos',
@@ -149,6 +161,7 @@ describe('BookingsService manual creation', () => {
   let service: BookingsService;
 
   beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-18T12:00:00.000Z'));
     bookingsRepository = createRepoMock<Booking>();
     scheduleRulesRepository = createRepoMock<EmployeeScheduleRule>();
     scheduleBreaksRepository = createRepoMock<EmployeeScheduleBreak>();
@@ -160,10 +173,16 @@ describe('BookingsService manual creation', () => {
     notificationsService = { sendBookingLifecycleNotifications: jest.fn() };
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   function buildService(dataSourceOverrides?: {
     transaction?: jest.Mock;
+    overlappingBookings?: Booking[];
+    serviceOverrides?: Partial<Service>;
   }): BookingsService {
-    const serviceEntity = createService();
+    const serviceEntity = createService(dataSourceOverrides?.serviceOverrides);
     const employee = createEmployee(serviceEntity);
     let persistedBooking: Booking | null = null;
 
@@ -199,7 +218,9 @@ describe('BookingsService manual creation', () => {
     };
 
     const bookingManagerRepo = {
-      findOne: jest.fn().mockResolvedValue(null),
+      find: jest
+        .fn()
+        .mockResolvedValue(dataSourceOverrides?.overlappingBookings ?? []),
       create: jest.fn((input) => ({
         id: 'booking-1',
         created_at: new Date('2026-03-18T10:00:00.000Z'),
@@ -277,17 +298,20 @@ describe('BookingsService manual creation', () => {
         action: 'BOOKING_MANUAL_CREATED',
       }),
     );
-    expect(notificationsService.sendBookingLifecycleNotifications).not.toHaveBeenCalled();
+    expect(
+      notificationsService.sendBookingLifecycleNotifications,
+    ).not.toHaveBeenCalled();
   });
 
   it('rejects a future manual booking that collides with active agenda when override is disabled', async () => {
-    service = buildService();
-    bookingsRepository.find.mockResolvedValue([
-      createBooking(createEmployee(createService()), {
-        start_at_utc: new Date('2026-03-20T14:10:00.000Z'),
-        end_at_utc: new Date('2026-03-20T14:50:00.000Z'),
-      }),
-    ]);
+    service = buildService({
+      overlappingBookings: [
+        createBooking(createEmployee(createService()), {
+          start_at_utc: new Date('2026-03-20T14:10:00.000Z'),
+          end_at_utc: new Date('2026-03-20T14:50:00.000Z'),
+        }),
+      ],
+    });
 
     await expect(
       service.createManualBooking(
@@ -341,5 +365,142 @@ describe('BookingsService manual creation', () => {
         }),
       }),
     );
+  });
+
+  it('creates an availability booking as confirmed when the service does not require confirmation', async () => {
+    service = buildService({
+      serviceOverrides: {
+        min_capacity: 1,
+        max_capacity: 2,
+        capacity: 2,
+      },
+    });
+
+    const result = await service.createBooking(
+      {
+        employee_id: 'employee-1',
+        service_ids: ['service-1'],
+        start_at_utc: '2026-06-19T13:35:00.000Z',
+        party_size: 2,
+        customer_name: 'Carlos',
+        customer_email: 'carlos@example.com',
+      },
+      {
+        sub: 'user-1',
+        role: 'TENANT_ADMIN',
+        tenant_id: 'tenant-1',
+      },
+    );
+
+    expect(result.status).toBe('CONFIRMED');
+    expect(result.party_size).toBe(2);
+  });
+
+  it('creates an availability booking as pending when the service requires confirmation', async () => {
+    service = buildService({
+      serviceOverrides: {
+        requires_confirmation: true,
+      },
+    });
+
+    const result = await service.createBooking(
+      {
+        employee_id: 'employee-1',
+        service_ids: ['service-1'],
+        start_at_utc: '2026-06-19T13:35:00.000Z',
+        customer_name: 'Carlos',
+      },
+      {
+        sub: 'user-1',
+        role: 'TENANT_ADMIN',
+        tenant_id: 'tenant-1',
+      },
+    );
+
+    expect(result.status).toBe('PENDING');
+  });
+
+  it('allows same-service overlapping bookings until capacity is consumed', async () => {
+    const serviceEntity = createService({
+      min_capacity: 1,
+      max_capacity: 2,
+      capacity: 2,
+    });
+    const employee = createEmployee(serviceEntity);
+    service = buildService({
+      serviceOverrides: {
+        min_capacity: 1,
+        max_capacity: 2,
+        capacity: 2,
+      },
+      overlappingBookings: [
+        createBooking(employee, {
+          start_at_utc: new Date('2026-06-19T13:35:00.000Z'),
+          end_at_utc: new Date('2026-06-19T14:05:00.000Z'),
+          busy_start_at_utc: new Date('2026-06-19T13:30:00.000Z'),
+          busy_end_at_utc: new Date('2026-06-19T14:10:00.000Z'),
+          party_size: 1,
+          items: [createBookingItem({ service_id: 'service-1' })],
+        }),
+      ],
+    });
+
+    const result = await service.createBooking(
+      {
+        employee_id: 'employee-1',
+        service_ids: ['service-1'],
+        start_at_utc: '2026-06-19T13:35:00.000Z',
+        party_size: 1,
+        customer_name: 'Carlos',
+      },
+      {
+        sub: 'user-1',
+        role: 'TENANT_ADMIN',
+        tenant_id: 'tenant-1',
+      },
+    );
+
+    expect(result.status).toBe('CONFIRMED');
+  });
+
+  it('rejects same-service overlapping bookings when capacity is consumed', async () => {
+    const serviceEntity = createService({
+      min_capacity: 1,
+      max_capacity: 2,
+      capacity: 2,
+    });
+    const employee = createEmployee(serviceEntity);
+    service = buildService({
+      serviceOverrides: {
+        min_capacity: 1,
+        max_capacity: 2,
+        capacity: 2,
+      },
+      overlappingBookings: [
+        createBooking(employee, {
+          start_at_utc: new Date('2026-06-19T13:40:00.000Z'),
+          end_at_utc: new Date('2026-06-19T14:20:00.000Z'),
+          party_size: 2,
+          items: [createBookingItem({ service_id: 'service-1' })],
+        }),
+      ],
+    });
+
+    await expect(
+      service.createBooking(
+        {
+          employee_id: 'employee-1',
+          service_ids: ['service-1'],
+          start_at_utc: '2026-06-19T13:40:00.000Z',
+          party_size: 1,
+          customer_name: 'Carlos',
+        },
+        {
+          sub: 'user-1',
+          role: 'TENANT_ADMIN',
+          tenant_id: 'tenant-1',
+        },
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });

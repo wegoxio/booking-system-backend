@@ -71,9 +71,9 @@ export class ResendEmailProvider implements EmailProvider {
       this.lastRequestAt = Date.now();
 
       if (response.ok) {
-        const payload = (await response.json().catch(() => null)) as
-          | ResendSendEmailResponse
-          | null;
+        const payload = (await response
+          .json()
+          .catch(() => null)) as ResendSendEmailResponse | null;
 
         this.logger.debug(
           `Email sent to ${input.to.email}${payload?.id ? ` (${payload.id})` : ''}`,
@@ -81,9 +81,9 @@ export class ResendEmailProvider implements EmailProvider {
         return;
       }
 
-      const payload = (await response.json().catch(() => null)) as
-        | ResendSendEmailResponse
-        | null;
+      const payload = (await response
+        .json()
+        .catch(() => null)) as ResendSendEmailResponse | null;
       const reason =
         payload?.message ||
         payload?.name ||

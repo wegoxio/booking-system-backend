@@ -7,13 +7,17 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { AuditService } from '../audit/audit.service';
 import { normalizePhoneInput } from '../common/phone/phone.util';
 import { S3StorageService } from '../tenant-settings/services/s3-storage.service';
 import { Employee } from './entities/employee.entity';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from '../common/dto/pagination-query.dto';
 
 type CurrentJwtUser = {
   sub: string;
@@ -53,7 +57,10 @@ export class EmployeesService {
     private readonly s3StorageService: S3StorageService,
   ) {}
 
-  async create(dto: CreateEmployeeDto, currentUser: CurrentJwtUser): Promise<Employee> {
+  async create(
+    dto: CreateEmployeeDto,
+    currentUser: CurrentJwtUser,
+  ): Promise<Employee> {
     if (!currentUser.tenant_id) {
       throw new BadRequestException('El contexto del negocio es obligatorio.');
     }
@@ -97,15 +104,36 @@ export class EmployeesService {
     return saved;
   }
 
-  async findAll(currentUser: CurrentJwtUser): Promise<Employee[]> {
+  async findAll(
+    currentUser: CurrentJwtUser,
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResponse<Employee>> {
     if (!currentUser.tenant_id) {
       throw new BadRequestException('El contexto del negocio es obligatorio.');
     }
 
-    return this.employeesRepository.find({
-      where: { tenant_id: currentUser.tenant_id },
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 25;
+    const search = query.q?.trim();
+    const base = { tenant_id: currentUser.tenant_id };
+    const where: FindOptionsWhere<Employee>[] | FindOptionsWhere<Employee> =
+      search
+        ? [
+            { ...base, name: ILike(`%${search}%`) },
+            { ...base, email: ILike(`%${search}%`) },
+          ]
+        : base;
+    const [data, total] = await this.employeesRepository.findAndCount({
+      where,
       order: { created_at: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+
+    return {
+      data,
+      pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: string, currentUser: CurrentJwtUser): Promise<Employee> {
@@ -256,7 +284,9 @@ export class EmployeesService {
     const declaredMime = file.mimetype?.trim().toLowerCase();
     if (declaredMime) {
       if (!ALLOWED_EMPLOYEE_AVATAR_MIME_TYPES.has(declaredMime)) {
-        throw new BadRequestException('El tipo MIME del avatar no es compatible.');
+        throw new BadRequestException(
+          'El tipo MIME del avatar no es compatible.',
+        );
       }
 
       if (!this.isMimeCompatibleWithFormat(declaredMime, detectedFormat)) {
@@ -282,7 +312,10 @@ export class EmployeesService {
 
   private detectAvatarFormat(buffer: Buffer): DetectedAvatarFormat | null {
     if (
-      this.startsWithBytes(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+      this.startsWithBytes(
+        buffer,
+        [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+      )
     ) {
       return 'png';
     }
@@ -335,7 +368,9 @@ export class EmployeesService {
       case 'webp':
         return 'webp';
       default:
-        throw new BadRequestException('El formato del avatar no es compatible.');
+        throw new BadRequestException(
+          'El formato del avatar no es compatible.',
+        );
     }
   }
 
@@ -348,7 +383,9 @@ export class EmployeesService {
       case 'webp':
         return 'image/webp';
       default:
-        throw new BadRequestException('El formato del avatar no es compatible.');
+        throw new BadRequestException(
+          'El formato del avatar no es compatible.',
+        );
     }
   }
 
@@ -369,7 +406,8 @@ export class EmployeesService {
     originalName: string | undefined,
     fallbackName: string,
   ): string {
-    const rawBaseName = originalName?.trim().replace(/\.[^.]+$/, '') || fallbackName;
+    const rawBaseName =
+      originalName?.trim().replace(/\.[^.]+$/, '') || fallbackName;
     const normalized = rawBaseName
       .normalize('NFKD')
       .replace(/[\u0300-\u036f]/g, '')

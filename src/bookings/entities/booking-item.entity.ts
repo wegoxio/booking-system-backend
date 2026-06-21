@@ -1,17 +1,11 @@
 import { BaseEntity } from '../../common/entities/base.entity';
 import { Service } from '../../services/entity/service.entity';
-import {
-  Column,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  Unique,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, Unique } from 'typeorm';
 import { Booking } from './booking.entity';
 
 @Entity('booking_items')
 @Unique('UQ_booking_items_booking_sort_order', ['booking_id', 'sort_order'])
+@Index('IDX_booking_items_service_booking', ['service_id', 'booking_id'])
 export class BookingItem extends BaseEntity {
   @Index('IDX_booking_items_booking_id')
   @Column({ type: 'uuid' })

@@ -5,13 +5,18 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
-import { Repository } from 'typeorm';
+import { EntityManager, ILike, IsNull, MoreThan, Repository } from 'typeorm';
 import { Tenant } from '../tenant/entities/tenant.entity';
 import { CreateTenantAdminDto } from './dto/create-tenant-admin.dto';
 import { UpdateTenantAdminDto } from './dto/update-tenant-admin.dto';
 import { AuditService } from '../audit/audit.service';
 import { CurrentJwtUser } from '../auth/types';
 import { AccountAccessService } from '../auth/account-access.service';
+import { AuthSession } from '../auth/entities/auth-session.entity';
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from '../common/dto/pagination-query.dto';
 
 type TenantAdminResponse = {
   id: string;
@@ -43,14 +48,36 @@ export class UserService {
     private readonly accountAccessService: AccountAccessService,
   ) {}
 
-  async findTenantAdmins(): Promise<TenantAdminResponse[]> {
-    const tenantAdmins = await this.usersRepo.find({
-      where: { role: 'TENANT_ADMIN' },
+  async findTenantAdmins(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResponse<TenantAdminResponse>> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 25;
+    const search = query.q?.trim();
+    const [tenantAdmins, total] = await this.usersRepo.findAndCount({
+      where: search
+        ? [
+            { role: 'TENANT_ADMIN', name: ILike(`%${search}%`) },
+            { role: 'TENANT_ADMIN', email: ILike(`%${search}%`) },
+          ]
+        : { role: 'TENANT_ADMIN' },
       relations: { tenant: true },
       order: { created_at: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
-    return tenantAdmins.map((tenantAdmin) => this.toTenantAdminResponse(tenantAdmin));
+    return {
+      data: tenantAdmins.map((tenantAdmin) =>
+        this.toTenantAdminResponse(tenantAdmin),
+      ),
+      pagination: {
+        page,
+        limit,
+        total,
+        total_pages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
   }
 
   async findTenantAdminById(id: string): Promise<TenantAdminResponse> {
@@ -84,7 +111,10 @@ export class UserService {
     const created = await this.usersRepo.save(newTenantAdmin);
 
     try {
-      await this.accountAccessService.issueTenantAdminInvitation(created, currentUser);
+      await this.accountAccessService.issueTenantAdminInvitation(
+        created,
+        currentUser,
+      );
     } catch (error) {
       await this.usersRepo.delete(created.id);
       throw error;
@@ -114,41 +144,108 @@ export class UserService {
     dto: UpdateTenantAdminDto,
     currentUser: CurrentJwtUser,
   ): Promise<TenantAdminResponse> {
-    const tenantAdmin = await this.findTenantAdminEntityById(id);
-    const previousIsActive = tenantAdmin.is_active;
+    const result = await this.usersRepo.manager.transaction(async (manager) => {
+      const usersRepo = manager.getRepository(User);
+      const tenantAdmin = await usersRepo.findOne({
+        where: { id, role: 'TENANT_ADMIN' },
+        relations: { tenant: true },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    if (dto.email !== undefined) {
-      const normalizedEmail = dto.email.trim().toLowerCase();
-      const existingEmail = await this.usersRepo.findOneBy({ email: normalizedEmail });
-      if (existingEmail && existingEmail.id !== tenantAdmin.id) {
-        throw new ConflictException('Ya existe un usuario con ese correo.');
+      if (!tenantAdmin) {
+        throw new NotFoundException('Administrador del negocio no encontrado.');
       }
 
-      tenantAdmin.email = normalizedEmail;
-    }
+      const previousIsActive = tenantAdmin.is_active;
+      const previousEmail = tenantAdmin.email;
+      const now = new Date();
+      let emailChanged = false;
 
-    if (dto.name !== undefined) {
-      tenantAdmin.name = dto.name.trim();
-    }
+      if (dto.email !== undefined) {
+        const normalizedEmail = dto.email.trim().toLowerCase();
+        const existingEmail = await usersRepo.findOneBy({
+          email: normalizedEmail,
+        });
+        if (existingEmail && existingEmail.id !== tenantAdmin.id) {
+          throw new ConflictException('Ya existe un usuario con ese correo.');
+        }
 
-    if (dto.tenant_id !== undefined) {
-      await this.ensureTenantExists(dto.tenant_id);
-      tenantAdmin.tenant_id = dto.tenant_id;
-    }
+        emailChanged = normalizedEmail !== previousEmail;
+        if (emailChanged) {
+          tenantAdmin.email = normalizedEmail;
+          tenantAdmin.password_hash = null;
+          tenantAdmin.email_verified_at = null;
+          tenantAdmin.onboarding_completed_at = null;
+          tenantAdmin.invited_at = now;
+        }
+      }
 
-    if (dto.is_active !== undefined) {
-      tenantAdmin.is_active = dto.is_active;
-    }
+      if (dto.name !== undefined) {
+        tenantAdmin.name = dto.name.trim();
+      }
 
-    await this.usersRepo.save(tenantAdmin);
-    const updatedTenantAdmin = await this.findTenantAdminEntityById(tenantAdmin.id);
+      if (dto.is_active !== undefined) {
+        tenantAdmin.is_active = dto.is_active;
+      }
+
+      const disabled = previousIsActive && tenantAdmin.is_active === false;
+      const shouldRevokeSessions = emailChanged || disabled;
+      let revokedSessions = 0;
+
+      if (shouldRevokeSessions) {
+        tenantAdmin.token_version = (tenantAdmin.token_version ?? 0) + 1;
+        revokedSessions = await this.revokeActiveSessionsForUser(
+          manager,
+          tenantAdmin.id,
+          emailChanged ? 'EMAIL_CHANGED' : 'USER_DISABLED',
+        );
+      }
+
+      await usersRepo.save(tenantAdmin);
+
+      return {
+        tenantAdminId: tenantAdmin.id,
+        previousIsActive,
+        emailChanged,
+        revokedSessions,
+      };
+    });
+
+    const updatedTenantAdmin = await this.findTenantAdminEntityById(
+      result.tenantAdminId,
+    );
     const statusChanged =
-      dto.is_active !== undefined && previousIsActive !== updatedTenantAdmin.is_active;
+      dto.is_active !== undefined &&
+      result.previousIsActive !== updatedTenantAdmin.is_active;
     const action = statusChanged
       ? updatedTenantAdmin.is_active
         ? 'TENANT_ADMIN_ENABLED'
         : 'TENANT_ADMIN_DISABLED'
-      : 'TENANT_ADMIN_UPDATED';
+      : result.emailChanged
+        ? 'TENANT_ADMIN_EMAIL_CHANGED'
+        : 'TENANT_ADMIN_UPDATED';
+
+    if (result.emailChanged && updatedTenantAdmin.is_active) {
+      try {
+        await this.accountAccessService.issueTenantAdminInvitation(
+          updatedTenantAdmin,
+          currentUser,
+        );
+      } catch (error) {
+        await this.auditService.log({
+          actor_user_id: currentUser.sub,
+          tenant_id: updatedTenantAdmin.tenant_id,
+          action: 'TENANT_ADMIN_INVITATION_FAILED',
+          entity: 'user',
+          entity_id: updatedTenantAdmin.id,
+          metadata: {
+            email: updatedTenantAdmin.email,
+            reason: error instanceof Error ? error.message : 'UNKNOWN_ERROR',
+          },
+        });
+        throw error;
+      }
+    }
 
     await this.auditService.log({
       actor_user_id: currentUser.sub,
@@ -161,6 +258,9 @@ export class UserService {
         email: updatedTenantAdmin.email,
         is_active: updatedTenantAdmin.is_active,
         updated_fields: Object.keys(dto),
+        email_changed: result.emailChanged,
+        sessions_revoked: result.revokedSessions,
+        access_state: this.resolveAccessState(updatedTenantAdmin),
       },
     });
 
@@ -189,9 +289,33 @@ export class UserService {
     return tenantAdmin;
   }
 
+  private async revokeActiveSessionsForUser(
+    manager: EntityManager,
+    userId: string,
+    reason: string,
+  ): Promise<number> {
+    const now = new Date();
+    const result = await manager.getRepository(AuthSession).update(
+      {
+        user_id: userId,
+        revoked_at: IsNull(),
+        expires_at: MoreThan(now),
+      },
+      {
+        revoked_at: now,
+        revocation_reason: reason,
+        last_used_at: now,
+      },
+    );
+
+    return result.affected ?? 0;
+  }
+
   private toTenantAdminResponse(user: User): TenantAdminResponse {
     if (!user.tenant_id) {
-      throw new NotFoundException('Administrador del negocio sin negocio asignado.');
+      throw new NotFoundException(
+        'Administrador del negocio sin negocio asignado.',
+      );
     }
 
     return {

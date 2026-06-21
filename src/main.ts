@@ -12,14 +12,18 @@ function normalizeOrigin(origin: string): string {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
-  const isProduction = configService.get<string>('NODE_ENV', 'development') === 'production';
+  const isProduction =
+    configService.get<string>('NODE_ENV', 'development') === 'production';
 
   const allowedOrigins = configService
     .get<string[]>('CORS_ORIGINS', ['http://localhost:3000'])
     .map(normalizeOrigin);
   const allowedOriginSet = new Set(allowedOrigins);
 
-  const corsAllowCredentials = configService.get<boolean>('CORS_ALLOW_CREDENTIALS', true);
+  const corsAllowCredentials = configService.get<boolean>(
+    'CORS_ALLOW_CREDENTIALS',
+    true,
+  );
   const corsAllowedHeaders = configService.get<string[]>(
     'CORS_ALLOWED_HEADERS',
     ['Content-Type', 'Authorization', 'X-CSRF-Token'],
@@ -28,13 +32,19 @@ async function bootstrap() {
     'CORS_ALLOWED_METHODS',
     ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   );
-  const corsMaxAgeSeconds = configService.get<number>('CORS_MAX_AGE_SECONDS', 600);
+  const corsMaxAgeSeconds = configService.get<number>(
+    'CORS_MAX_AGE_SECONDS',
+    600,
+  );
 
   if (isProduction && allowedOriginSet.size === 0) {
     throw new Error('CORS_ORIGINS no puede estar vacio en produccion.');
   }
 
-  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .set('trust proxy', configService.get<number>('TRUST_PROXY_HOPS', 1));
   app.use(cookieParser());
   app.use(
     helmet({

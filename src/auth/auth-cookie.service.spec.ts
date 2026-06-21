@@ -34,7 +34,9 @@ describe('AuthCookieService', () => {
             AUTH_REFRESH_COOKIE_SECURE: false,
           }),
         ),
-    ).toThrow('AUTH_REFRESH_COOKIE_SAME_SITE=none requiere AUTH_REFRESH_COOKIE_SECURE=true');
+    ).toThrow(
+      'AUTH_REFRESH_COOKIE_SAME_SITE=none requiere AUTH_REFRESH_COOKIE_SECURE=true',
+    );
   });
 
   it('accepts CSRF header when duplicate CSRF cookies exist and one matches', () => {

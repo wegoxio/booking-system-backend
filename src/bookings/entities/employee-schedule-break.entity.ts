@@ -1,13 +1,6 @@
 import { TenantBaseEntity } from '../../common/entities/tenant-base-entity';
 import { Employee } from '../../employees/entities/employee.entity';
-import {
-  Column,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  Unique,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, Unique } from 'typeorm';
 
 @Entity('employee_schedule_breaks')
 @Unique('UQ_employee_schedule_break', [

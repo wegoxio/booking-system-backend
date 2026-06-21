@@ -6,9 +6,7 @@ type LegacyPhoneRow = {
   phone: string | null;
 };
 
-export class AddStructuredPhoneFields1774200000000
-  implements MigrationInterface
-{
+export class AddStructuredPhoneFields1774200000000 implements MigrationInterface {
   name = 'AddStructuredPhoneFields1774200000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

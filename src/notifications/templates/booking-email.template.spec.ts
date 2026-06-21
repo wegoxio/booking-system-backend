@@ -62,6 +62,8 @@ describe('buildBookingLifecycleEmail', () => {
 
     expect(rendered.html).toContain('Indicaciones');
     expect(rendered.html).toContain('Llegar con el cabello limpio.');
-    expect(rendered.text).toContain('Indicaciones: Llegar con el cabello limpio.');
+    expect(rendered.text).toContain(
+      'Indicaciones: Llegar con el cabello limpio.',
+    );
   });
 });

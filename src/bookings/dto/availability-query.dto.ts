@@ -3,10 +3,13 @@ import {
   ArrayMinSize,
   ArrayUnique,
   IsArray,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Length,
+  Max,
+  Min,
   Matches,
 } from 'class-validator';
 
@@ -46,4 +49,11 @@ export class AvailabilityQueryDto {
   @IsString()
   @Length(2, 64)
   timezone?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined ? undefined : Number(value)))
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  party_size?: number = 1;
 }

@@ -53,7 +53,11 @@ export class BookingsController {
     @Body() dto: SetEmployeeScheduleDto,
     @CurrentUser() currentUser: CurrentJwtUser,
   ) {
-    return this.bookingsService.setEmployeeSchedule(employeeId, dto, currentUser);
+    return this.bookingsService.setEmployeeSchedule(
+      employeeId,
+      dto,
+      currentUser,
+    );
   }
 
   @Get('employees/:employeeId/schedule')
@@ -70,7 +74,11 @@ export class BookingsController {
     @Body() dto: CreateEmployeeTimeOffDto,
     @CurrentUser() currentUser: CurrentJwtUser,
   ) {
-    return this.bookingsService.createEmployeeTimeOff(employeeId, dto, currentUser);
+    return this.bookingsService.createEmployeeTimeOff(
+      employeeId,
+      dto,
+      currentUser,
+    );
   }
 
   @Delete('employees/:employeeId/time-off/:timeOffId')

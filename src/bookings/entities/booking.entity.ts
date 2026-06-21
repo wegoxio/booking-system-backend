@@ -14,8 +14,32 @@ import { BookingItem } from './booking-item.entity';
 
 @Entity('bookings')
 @Index('IDX_bookings_tenant_start', ['tenant_id', 'start_at_utc'])
-@Index('IDX_bookings_tenant_employee_start', ['tenant_id', 'employee_id', 'start_at_utc'])
+@Index('IDX_bookings_tenant_employee_start', [
+  'tenant_id',
+  'employee_id',
+  'start_at_utc',
+])
+@Index('IDX_bookings_tenant_employee_status_busy_range', [
+  'tenant_id',
+  'employee_id',
+  'status',
+  'busy_start_at_utc',
+  'busy_end_at_utc',
+])
+@Index('IDX_bookings_tenant_status_start', [
+  'tenant_id',
+  'status',
+  'start_at_utc',
+])
+@Index('IDX_bookings_tenant_source_start', [
+  'tenant_id',
+  'source',
+  'start_at_utc',
+])
 export class Booking extends TenantBaseEntity {
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  idempotency_key: string | null;
+
   @Index('IDX_bookings_employee_id')
   @Column({ type: 'uuid' })
   employee_id: string;
@@ -33,6 +57,12 @@ export class Booking extends TenantBaseEntity {
 
   @Column({ type: 'timestamptz' })
   end_at_utc: Date;
+
+  @Column({ type: 'timestamptz' })
+  busy_start_at_utc: Date;
+
+  @Column({ type: 'timestamptz' })
+  busy_end_at_utc: Date;
 
   @Index('IDX_bookings_status')
   @Column({ type: 'varchar', length: 20 })
@@ -55,6 +85,9 @@ export class Booking extends TenantBaseEntity {
 
   @Column({ type: 'int' })
   total_duration_minutes: number;
+
+  @Column({ type: 'int', default: 1 })
+  party_size: number;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   total_price: string;

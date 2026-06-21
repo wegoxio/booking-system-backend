@@ -70,8 +70,12 @@ describe('buildBookingCalendarAttachment', () => {
     expect(attachment?.contentType).toContain('text/calendar');
     expect(attachment?.content).toContain('BEGIN:VCALENDAR');
     expect(attachment?.content).toContain('METHOD:REQUEST');
-    expect(attachment?.content).toContain('ATTENDEE:mailto:cliente@example.com');
-    expect(attachment?.content).toContain('UID:booking-1-tenant-1@calendar.weegox');
+    expect(attachment?.content).toContain(
+      'ATTENDEE:mailto:cliente@example.com',
+    );
+    expect(attachment?.content).toContain(
+      'UID:booking-1-tenant-1@calendar.weegox',
+    );
     expect(attachment?.content).toContain('STATUS:CONFIRMED');
     expect(attachment?.content).toContain('\r\n');
   });

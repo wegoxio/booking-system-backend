@@ -1,4 +1,4 @@
-﻿import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import ExcelJS from 'exceljs';
 import type { CurrentJwtUser } from '../auth/types';
@@ -7,9 +7,7 @@ import {
   formatDateInTimeZone,
   getUtcRangeForLocalDate,
 } from '../bookings/bookings.time-utils';
-import {
-  BOOKING_REVENUE_STATUSES,
-} from '../bookings/bookings.constants';
+import { BOOKING_REVENUE_STATUSES } from '../bookings/bookings.constants';
 import { Booking } from '../bookings/entities/booking.entity';
 import { BookingItem } from '../bookings/entities/booking-item.entity';
 import { BookingReminder } from '../reminders/entities/booking-reminder.entity';
@@ -44,10 +42,14 @@ type NormalizedReportsQuery = {
   serviceId: string | null;
   source: ReportBookingSource | null;
   status: ReportBookingStatus | null;
+  currency: string | null;
   topLimit: number;
 };
 
-const PERIOD_INTERVAL_BY_GROUP: Record<ReportGroupBy, 'day' | 'week' | 'month'> = {
+const PERIOD_INTERVAL_BY_GROUP: Record<
+  ReportGroupBy,
+  'day' | 'week' | 'month'
+> = {
   day: 'day',
   week: 'week',
   month: 'month',
@@ -72,7 +74,6 @@ const EXCEL_COLORS = {
 
 const EXCEL_NUMBER_FORMATS = {
   integer: '#,##0',
-  currencyUsd: '$#,##0.00',
   decimal: '#,##0.00',
   percentFraction: '0.00%',
   percentValue: '0.00"%"',
@@ -93,17 +94,23 @@ export class ReportsService {
     currentUser: CurrentJwtUser,
     query: ReportsOverviewQueryDto,
   ): Promise<ReportsOverviewResponse> {
-    const filters = this.normalizeQuery(currentUser, query);
+    const filters = await this.normalizeQuery(currentUser, query);
 
-    const [summary, timeSeries, topServices, topEmployees, sourceBreakdown, reminders] =
-      await Promise.all([
-        this.buildSummary(filters),
-        this.buildTimeSeries(filters),
-        this.buildTopServices(filters),
-        this.buildTopEmployees(filters),
-        this.buildSourceBreakdown(filters),
-        this.buildReminderSummary(filters),
-      ]);
+    const [
+      summary,
+      timeSeries,
+      topServices,
+      topEmployees,
+      sourceBreakdown,
+      reminders,
+    ] = await Promise.all([
+      this.buildSummary(filters),
+      this.buildTimeSeries(filters),
+      this.buildTopServices(filters),
+      this.buildTopEmployees(filters),
+      this.buildSourceBreakdown(filters),
+      this.buildReminderSummary(filters),
+    ]);
 
     return {
       generated_at: new Date().toISOString(),
@@ -123,6 +130,7 @@ export class ReportsService {
         service_id: filters.serviceId,
         source: filters.source,
         status: filters.status,
+        currency: filters.currency!,
         top_limit: filters.topLimit,
       },
       summary,
@@ -162,10 +170,10 @@ export class ReportsService {
     };
   }
 
-  private normalizeQuery(
+  private async normalizeQuery(
     currentUser: CurrentJwtUser,
     query: ReportsOverviewQueryDto,
-  ): NormalizedReportsQuery {
+  ): Promise<NormalizedReportsQuery> {
     const timeZone = (query.timezone?.trim() || 'UTC').trim();
     this.assertValidTimezone(timeZone);
 
@@ -173,7 +181,9 @@ export class ReportsService {
     const dateFrom = query.date_from || addDaysToDateString(dateTo, -29);
 
     if (dateFrom > dateTo) {
-      throw new BadRequestException('date_from debe ser menor o igual a date_to');
+      throw new BadRequestException(
+        'date_from debe ser menor o igual a date_to',
+      );
     }
 
     const rangeStartUtc = getUtcRangeForLocalDate(dateFrom, timeZone).start;
@@ -182,6 +192,17 @@ export class ReportsService {
     const groupBy = query.group_by || 'day';
     if (!REPORT_GROUP_BY_VALUES.includes(groupBy)) {
       throw new BadRequestException('El valor de group_by es invÃ¡lido');
+    }
+
+    const rangeDays = Math.ceil(
+      (rangeEndUtc.getTime() - rangeStartUtc.getTime()) / 86_400_000,
+    );
+    const maxRangeDays =
+      groupBy === 'day' ? 366 : groupBy === 'week' ? 1826 : 3653;
+    if (rangeDays > maxRangeDays) {
+      throw new BadRequestException(
+        `El rango máximo para agrupación ${groupBy} es de ${maxRangeDays} días.`,
+      );
     }
 
     const topLimit = Math.max(3, Math.min(query.top_limit ?? 10, 30));
@@ -194,7 +215,7 @@ export class ReportsService {
       throw new BadRequestException('El contexto del negocio es obligatorio.');
     }
 
-    return {
+    const normalized: NormalizedReportsQuery = {
       dateFrom,
       dateTo,
       rangeStartUtc,
@@ -206,11 +227,37 @@ export class ReportsService {
       serviceId: query.service_id || null,
       source: query.source || null,
       status: query.status || null,
+      currency: query.currency?.trim().toUpperCase() || null,
       topLimit,
     };
+
+    if (!normalized.currency) {
+      normalized.currency = await this.resolveSingleCurrency(normalized);
+    }
+    return normalized;
   }
 
-  private async buildSummary(filters: NormalizedReportsQuery): Promise<ReportsSummary> {
+  private async resolveSingleCurrency(
+    filters: NormalizedReportsQuery,
+  ): Promise<string> {
+    const qb = this.bookingsRepository
+      .createQueryBuilder('booking')
+      .select('booking.currency', 'currency')
+      .distinct(true)
+      .limit(2);
+    this.applyBookingFilters(qb, filters);
+    const rows = await qb.getRawMany<{ currency: string }>();
+    if (rows.length > 1) {
+      throw new BadRequestException(
+        'El rango contiene varias divisas. Indica el filtro currency para evitar sumar importes incompatibles.',
+      );
+    }
+    return rows[0]?.currency?.toUpperCase() || 'USD';
+  }
+
+  private async buildSummary(
+    filters: NormalizedReportsQuery,
+  ): Promise<ReportsSummary> {
     const qb = this.bookingsRepository
       .createQueryBuilder('booking')
       .select('COUNT(*)::int', 'bookings_total')
@@ -230,7 +277,10 @@ export class ReportsService {
         `COALESCE(SUM(CASE WHEN booking.status IN (:...revenueStatuses) THEN booking.total_price ELSE 0 END), 0)::numeric`,
         'revenue_total_usd',
       )
-      .addSelect('COALESCE(AVG(booking.total_duration_minutes), 0)::numeric', 'avg_duration_minutes')
+      .addSelect(
+        'COALESCE(AVG(booking.total_duration_minutes), 0)::numeric',
+        'avg_duration_minutes',
+      )
       .addSelect(
         'COALESCE(AVG(EXTRACT(EPOCH FROM (booking.start_at_utc - booking.created_at)) / 3600), 0)::numeric',
         'avg_lead_time_hours',
@@ -369,7 +419,9 @@ export class ReportsService {
     });
 
     if (filters.serviceId) {
-      qb.andWhere('item.service_id = :serviceId', { serviceId: filters.serviceId });
+      qb.andWhere('item.service_id = :serviceId', {
+        serviceId: filters.serviceId,
+      });
     }
 
     const rows = await qb.getRawMany<{
@@ -574,7 +626,15 @@ export class ReportsService {
     });
 
     if (filters.tenantId) {
-      qb.andWhere(`${alias}.tenant_id = :tenantId`, { tenantId: filters.tenantId });
+      qb.andWhere(`${alias}.tenant_id = :tenantId`, {
+        tenantId: filters.tenantId,
+      });
+    }
+
+    if (filters.currency) {
+      qb.andWhere(`${alias}.currency = :currency`, {
+        currency: filters.currency,
+      });
     }
 
     if (filters.employeeId) {
@@ -706,9 +766,17 @@ export class ReportsService {
     report: ReportsOverviewResponse,
   ): void {
     const sheet = workbook.addWorksheet('Resumen');
-    sheet.columns = [{ width: 34 }, { width: 24 }, { width: 34 }, { width: 30 }];
+    sheet.columns = [
+      { width: 34 },
+      { width: 24 },
+      { width: 34 },
+      { width: 30 },
+    ];
 
-    const generatedAt = this.formatGeneratedAt(report.generated_at, report.filters.timezone);
+    const generatedAt = this.formatGeneratedAt(
+      report.generated_at,
+      report.filters.timezone,
+    );
     const tenantScope = this.resolveScopeTenantLabel(report);
 
     this.applySheetTitle(sheet, {
@@ -723,12 +791,24 @@ export class ReportsService {
       currentRow,
       'Contexto del reporte',
       [
-        { label: 'Rol de alcance', value: this.formatRoleLabel(report.scope.role) },
+        {
+          label: 'Rol de alcance',
+          value: this.formatRoleLabel(report.scope.role),
+        },
         { label: 'Negocio de alcance', value: tenantScope },
-        { label: 'Agrupacion', value: this.formatGroupByLabel(report.filters.group_by) },
+        {
+          label: 'Agrupacion',
+          value: this.formatGroupByLabel(report.filters.group_by),
+        },
         { label: 'Zona horaria', value: report.filters.timezone },
-        { label: 'Filtro estado', value: this.formatStatusLabel(report.filters.status) },
-        { label: 'Filtro canal', value: this.formatSourceLabel(report.filters.source) },
+        {
+          label: 'Filtro estado',
+          value: this.formatStatusLabel(report.filters.status),
+        },
+        {
+          label: 'Filtro canal',
+          value: this.formatSourceLabel(report.filters.source),
+        },
         {
           label: 'Filtro profesional',
           value: report.filters.employee_id ? 'Aplicado' : 'Todos',
@@ -798,16 +878,16 @@ export class ReportsService {
       'Rendimiento economico y operativo',
       [
         {
-          label: 'Ingresos totales (USD)',
+          label: `Ingresos totales (${report.filters.currency})`,
           value: report.summary.revenue_total_usd,
           note: 'Suma en estados monetizables',
-          numFmt: EXCEL_NUMBER_FORMATS.currencyUsd,
+          numFmt: this.currencyNumberFormat(report.filters.currency),
         },
         {
           label: 'Ticket promedio (USD)',
           value: report.summary.avg_ticket_usd,
           note: 'Ingresos / completadas',
-          numFmt: EXCEL_NUMBER_FORMATS.currencyUsd,
+          numFmt: this.currencyNumberFormat(report.filters.currency),
         },
         {
           label: 'Duracion promedio (min)',
@@ -913,8 +993,8 @@ export class ReportsService {
       '% Completados',
       '% Cancelacion',
       '% Inasistencia',
-      'Ingresos USD',
-      'Ticket promedio USD',
+      `Ingresos ${report.filters.currency}`,
+      `Ticket promedio ${report.filters.currency}`,
     ]);
     this.applyHeaderStyle(sheet, headerRow, 1, 10);
 
@@ -926,9 +1006,12 @@ export class ReportsService {
     let totalRevenue = 0;
 
     for (const row of report.time_series) {
-      const completionRate = row.bookings_total > 0 ? row.completed_count / row.bookings_total : 0;
-      const cancellationRate = row.bookings_total > 0 ? row.cancelled_count / row.bookings_total : 0;
-      const noShowRate = row.bookings_total > 0 ? row.no_show_count / row.bookings_total : 0;
+      const completionRate =
+        row.bookings_total > 0 ? row.completed_count / row.bookings_total : 0;
+      const cancellationRate =
+        row.bookings_total > 0 ? row.cancelled_count / row.bookings_total : 0;
+      const noShowRate =
+        row.bookings_total > 0 ? row.no_show_count / row.bookings_total : 0;
 
       this.setRowValues(sheet, currentRow, [
         row.period_label,
@@ -942,7 +1025,12 @@ export class ReportsService {
         row.revenue_total_usd,
         row.avg_ticket_usd,
       ]);
-      this.applyBodyRowStyle(sheet.getRow(currentRow), 1, 10, currentRow % 2 === 0);
+      this.applyBodyRowStyle(
+        sheet.getRow(currentRow),
+        1,
+        10,
+        currentRow % 2 === 0,
+      );
 
       totalBookings += row.bookings_total;
       totalCompleted += row.completed_count;
@@ -953,10 +1041,14 @@ export class ReportsService {
     }
 
     if (report.time_series.length > 0) {
-      const totalCompletion = totalBookings > 0 ? totalCompleted / totalBookings : 0;
-      const totalCancel = totalBookings > 0 ? totalCancelled / totalBookings : 0;
-      const totalNoShowRate = totalBookings > 0 ? totalNoShow / totalBookings : 0;
-      const totalAvgTicket = totalCompleted > 0 ? totalRevenue / totalCompleted : 0;
+      const totalCompletion =
+        totalBookings > 0 ? totalCompleted / totalBookings : 0;
+      const totalCancel =
+        totalBookings > 0 ? totalCancelled / totalBookings : 0;
+      const totalNoShowRate =
+        totalBookings > 0 ? totalNoShow / totalBookings : 0;
+      const totalAvgTicket =
+        totalCompleted > 0 ? totalRevenue / totalCompleted : 0;
 
       this.setRowValues(sheet, currentRow, [
         'TOTAL / PROMEDIO',
@@ -979,15 +1071,69 @@ export class ReportsService {
 
     const lastRow = currentRow;
     this.applyBorders(sheet, headerRow, lastRow, 1, 10);
-    this.setNumberFormat(sheet, 2, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.integer);
-    this.setNumberFormat(sheet, 3, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.integer);
-    this.setNumberFormat(sheet, 4, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.integer);
-    this.setNumberFormat(sheet, 5, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.integer);
-    this.setNumberFormat(sheet, 6, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.percentFraction);
-    this.setNumberFormat(sheet, 7, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.percentFraction);
-    this.setNumberFormat(sheet, 8, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.percentFraction);
-    this.setNumberFormat(sheet, 9, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.currencyUsd);
-    this.setNumberFormat(sheet, 10, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.currencyUsd);
+    this.setNumberFormat(
+      sheet,
+      2,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.integer,
+    );
+    this.setNumberFormat(
+      sheet,
+      3,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.integer,
+    );
+    this.setNumberFormat(
+      sheet,
+      4,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.integer,
+    );
+    this.setNumberFormat(
+      sheet,
+      5,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.integer,
+    );
+    this.setNumberFormat(
+      sheet,
+      6,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.percentFraction,
+    );
+    this.setNumberFormat(
+      sheet,
+      7,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.percentFraction,
+    );
+    this.setNumberFormat(
+      sheet,
+      8,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.percentFraction,
+    );
+    this.setNumberFormat(
+      sheet,
+      9,
+      headerRow + 1,
+      lastRow,
+      this.currencyNumberFormat(report.filters.currency),
+    );
+    this.setNumberFormat(
+      sheet,
+      10,
+      headerRow + 1,
+      lastRow,
+      this.currencyNumberFormat(report.filters.currency),
+    );
 
     sheet.autoFilter = {
       from: { row: headerRow, column: 1 },
@@ -1023,14 +1169,17 @@ export class ReportsService {
       'Servicio',
       'Items vendidos',
       'Citas',
-      'Ingresos USD',
-      'Precio promedio USD',
+      `Ingresos ${report.filters.currency}`,
+      `Precio promedio ${report.filters.currency}`,
       '% Ingresos',
     ]);
     this.applyHeaderStyle(sheet, headerRow, 1, 7);
 
     let currentRow = headerRow + 1;
-    const totalRevenue = report.top_services.reduce((sum, item) => sum + item.revenue_total_usd, 0);
+    const totalRevenue = report.top_services.reduce(
+      (sum, item) => sum + item.revenue_total_usd,
+      0,
+    );
     const grouped = new Map<string, ReportsTopService[]>();
 
     for (const service of report.top_services) {
@@ -1050,7 +1199,10 @@ export class ReportsService {
       let stripedToggle = false;
 
       for (const [tenantLabel, services] of grouped.entries()) {
-        const tenantRevenue = services.reduce((sum, item) => sum + item.revenue_total_usd, 0);
+        const tenantRevenue = services.reduce(
+          (sum, item) => sum + item.revenue_total_usd,
+          0,
+        );
         const tenantShare = totalRevenue > 0 ? tenantRevenue / totalRevenue : 0;
 
         this.setRowValues(sheet, currentRow, [
@@ -1068,7 +1220,8 @@ export class ReportsService {
         let tenantItems = 0;
         let tenantBookings = 0;
         for (const service of services) {
-          const serviceShare = totalRevenue > 0 ? service.revenue_total_usd / totalRevenue : 0;
+          const serviceShare =
+            totalRevenue > 0 ? service.revenue_total_usd / totalRevenue : 0;
 
           this.setRowValues(sheet, currentRow, [
             tenantLabel,
@@ -1105,11 +1258,41 @@ export class ReportsService {
 
     const lastRow = grouped.size === 0 ? currentRow : currentRow - 1;
     this.applyBorders(sheet, headerRow, lastRow, 1, 7);
-    this.setNumberFormat(sheet, 3, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.integer);
-    this.setNumberFormat(sheet, 4, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.integer);
-    this.setNumberFormat(sheet, 5, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.currencyUsd);
-    this.setNumberFormat(sheet, 6, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.currencyUsd);
-    this.setNumberFormat(sheet, 7, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.percentFraction);
+    this.setNumberFormat(
+      sheet,
+      3,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.integer,
+    );
+    this.setNumberFormat(
+      sheet,
+      4,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.integer,
+    );
+    this.setNumberFormat(
+      sheet,
+      5,
+      headerRow + 1,
+      lastRow,
+      this.currencyNumberFormat(report.filters.currency),
+    );
+    this.setNumberFormat(
+      sheet,
+      6,
+      headerRow + 1,
+      lastRow,
+      this.currencyNumberFormat(report.filters.currency),
+    );
+    this.setNumberFormat(
+      sheet,
+      7,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.percentFraction,
+    );
 
     sheet.autoFilter = {
       from: { row: headerRow, column: 1 },
@@ -1147,8 +1330,8 @@ export class ReportsService {
       'Citas',
       'Completadas',
       '% Completados',
-      'Ingresos USD',
-      'Ticket promedio USD',
+      `Ingresos ${report.filters.currency}`,
+      `Ticket promedio ${report.filters.currency}`,
       'ID profesional',
     ]);
     this.applyHeaderStyle(sheet, headerRow, 1, 8);
@@ -1159,7 +1342,8 @@ export class ReportsService {
     let totalRevenue = 0;
 
     for (const row of report.top_employees) {
-      const completionRate = row.bookings_count > 0 ? row.completed_count / row.bookings_count : 0;
+      const completionRate =
+        row.bookings_count > 0 ? row.completed_count / row.bookings_count : 0;
       this.setRowValues(sheet, currentRow, [
         row.employee_name,
         row.avatar_url || '',
@@ -1170,7 +1354,12 @@ export class ReportsService {
         row.avg_ticket_usd,
         row.employee_id,
       ]);
-      this.applyBodyRowStyle(sheet.getRow(currentRow), 1, 8, currentRow % 2 === 0);
+      this.applyBodyRowStyle(
+        sheet.getRow(currentRow),
+        1,
+        8,
+        currentRow % 2 === 0,
+      );
 
       totalBookings += row.bookings_count;
       totalCompleted += row.completed_count;
@@ -1180,7 +1369,8 @@ export class ReportsService {
 
     if (report.top_employees.length > 0) {
       const totalRate = totalBookings > 0 ? totalCompleted / totalBookings : 0;
-      const totalAvgTicket = totalCompleted > 0 ? totalRevenue / totalCompleted : 0;
+      const totalAvgTicket =
+        totalCompleted > 0 ? totalRevenue / totalCompleted : 0;
       this.setRowValues(sheet, currentRow, [
         'TOTAL / PROMEDIO',
         '',
@@ -1200,11 +1390,41 @@ export class ReportsService {
 
     const lastRow = currentRow;
     this.applyBorders(sheet, headerRow, lastRow, 1, 8);
-    this.setNumberFormat(sheet, 3, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.integer);
-    this.setNumberFormat(sheet, 4, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.integer);
-    this.setNumberFormat(sheet, 5, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.percentFraction);
-    this.setNumberFormat(sheet, 6, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.currencyUsd);
-    this.setNumberFormat(sheet, 7, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.currencyUsd);
+    this.setNumberFormat(
+      sheet,
+      3,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.integer,
+    );
+    this.setNumberFormat(
+      sheet,
+      4,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.integer,
+    );
+    this.setNumberFormat(
+      sheet,
+      5,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.percentFraction,
+    );
+    this.setNumberFormat(
+      sheet,
+      6,
+      headerRow + 1,
+      lastRow,
+      this.currencyNumberFormat(report.filters.currency),
+    );
+    this.setNumberFormat(
+      sheet,
+      7,
+      headerRow + 1,
+      lastRow,
+      this.currencyNumberFormat(report.filters.currency),
+    );
 
     sheet.autoFilter = {
       from: { row: headerRow, column: 1 },
@@ -1243,8 +1463,8 @@ export class ReportsService {
       'Canceladas',
       '% Completados',
       '% Cancelacion',
-      'Ingresos USD',
-      'Ticket promedio USD',
+      `Ingresos ${report.filters.currency}`,
+      `Ticket promedio ${report.filters.currency}`,
     ]);
     this.applyHeaderStyle(sheet, headerRow, 1, 8);
 
@@ -1255,9 +1475,14 @@ export class ReportsService {
     let totalRevenue = 0;
 
     for (const row of report.source_breakdown) {
-      const completionRate = row.bookings_count > 0 ? row.completed_count / row.bookings_count : 0;
-      const cancellationRate = row.bookings_count > 0 ? row.cancelled_count / row.bookings_count : 0;
-      const avgTicket = row.completed_count > 0 ? row.revenue_total_usd / row.completed_count : 0;
+      const completionRate =
+        row.bookings_count > 0 ? row.completed_count / row.bookings_count : 0;
+      const cancellationRate =
+        row.bookings_count > 0 ? row.cancelled_count / row.bookings_count : 0;
+      const avgTicket =
+        row.completed_count > 0
+          ? row.revenue_total_usd / row.completed_count
+          : 0;
 
       this.setRowValues(sheet, currentRow, [
         this.formatSourceLabel(row.source),
@@ -1269,7 +1494,12 @@ export class ReportsService {
         row.revenue_total_usd,
         avgTicket,
       ]);
-      this.applyBodyRowStyle(sheet.getRow(currentRow), 1, 8, currentRow % 2 === 0);
+      this.applyBodyRowStyle(
+        sheet.getRow(currentRow),
+        1,
+        8,
+        currentRow % 2 === 0,
+      );
 
       totalBookings += row.bookings_count;
       totalCompleted += row.completed_count;
@@ -1279,9 +1509,12 @@ export class ReportsService {
     }
 
     if (report.source_breakdown.length > 0) {
-      const totalCompletion = totalBookings > 0 ? totalCompleted / totalBookings : 0;
-      const totalCancellation = totalBookings > 0 ? totalCancelled / totalBookings : 0;
-      const totalAvgTicket = totalCompleted > 0 ? totalRevenue / totalCompleted : 0;
+      const totalCompletion =
+        totalBookings > 0 ? totalCompleted / totalBookings : 0;
+      const totalCancellation =
+        totalBookings > 0 ? totalCancelled / totalBookings : 0;
+      const totalAvgTicket =
+        totalCompleted > 0 ? totalRevenue / totalCompleted : 0;
       this.setRowValues(sheet, currentRow, [
         'TOTAL',
         totalBookings,
@@ -1301,13 +1534,55 @@ export class ReportsService {
 
     const lastRow = currentRow;
     this.applyBorders(sheet, headerRow, lastRow, 1, 8);
-    this.setNumberFormat(sheet, 2, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.integer);
-    this.setNumberFormat(sheet, 3, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.integer);
-    this.setNumberFormat(sheet, 4, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.integer);
-    this.setNumberFormat(sheet, 5, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.percentFraction);
-    this.setNumberFormat(sheet, 6, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.percentFraction);
-    this.setNumberFormat(sheet, 7, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.currencyUsd);
-    this.setNumberFormat(sheet, 8, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.currencyUsd);
+    this.setNumberFormat(
+      sheet,
+      2,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.integer,
+    );
+    this.setNumberFormat(
+      sheet,
+      3,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.integer,
+    );
+    this.setNumberFormat(
+      sheet,
+      4,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.integer,
+    );
+    this.setNumberFormat(
+      sheet,
+      5,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.percentFraction,
+    );
+    this.setNumberFormat(
+      sheet,
+      6,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.percentFraction,
+    );
+    this.setNumberFormat(
+      sheet,
+      7,
+      headerRow + 1,
+      lastRow,
+      this.currencyNumberFormat(report.filters.currency),
+    );
+    this.setNumberFormat(
+      sheet,
+      8,
+      headerRow + 1,
+      lastRow,
+      this.currencyNumberFormat(report.filters.currency),
+    );
 
     sheet.autoFilter = {
       from: { row: headerRow, column: 1 },
@@ -1321,7 +1596,12 @@ export class ReportsService {
     report: ReportsOverviewResponse,
   ): void {
     const sheet = workbook.addWorksheet('Recordatorios');
-    sheet.columns = [{ width: 28 }, { width: 16 }, { width: 18 }, { width: 50 }];
+    sheet.columns = [
+      { width: 28 },
+      { width: 16 },
+      { width: 18 },
+      { width: 50 },
+    ];
 
     this.applySheetTitle(sheet, {
       title: 'Estado de recordatorios',
@@ -1339,7 +1619,8 @@ export class ReportsService {
     this.applyHeaderStyle(sheet, headerRow, 1, 4);
 
     const scheduled = report.reminders.scheduled_total;
-    const asRate = (value: number): number => (scheduled > 0 ? value / scheduled : 0);
+    const asRate = (value: number): number =>
+      scheduled > 0 ? value / scheduled : 0;
 
     const rows = [
       {
@@ -1382,8 +1663,18 @@ export class ReportsService {
 
     let currentRow = headerRow + 1;
     for (const row of rows) {
-      this.setRowValues(sheet, currentRow, [row.label, row.value, row.rate, row.note]);
-      this.applyBodyRowStyle(sheet.getRow(currentRow), 1, 4, currentRow % 2 === 0);
+      this.setRowValues(sheet, currentRow, [
+        row.label,
+        row.value,
+        row.rate,
+        row.note,
+      ]);
+      this.applyBodyRowStyle(
+        sheet.getRow(currentRow),
+        1,
+        4,
+        currentRow % 2 === 0,
+      );
       currentRow += 1;
     }
 
@@ -1397,8 +1688,20 @@ export class ReportsService {
 
     const lastRow = currentRow;
     this.applyBorders(sheet, headerRow, lastRow, 1, 4);
-    this.setNumberFormat(sheet, 2, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.integer);
-    this.setNumberFormat(sheet, 3, headerRow + 1, lastRow, EXCEL_NUMBER_FORMATS.percentFraction);
+    this.setNumberFormat(
+      sheet,
+      2,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.integer,
+    );
+    this.setNumberFormat(
+      sheet,
+      3,
+      headerRow + 1,
+      lastRow,
+      EXCEL_NUMBER_FORMATS.percentFraction,
+    );
 
     sheet.autoFilter = {
       from: { row: headerRow, column: 1 },
@@ -1706,12 +2009,16 @@ export class ReportsService {
     return 'Todos los negocios';
   }
 
-  private formatRoleLabel(role: ReportsOverviewResponse['scope']['role']): string {
+  private formatRoleLabel(
+    role: ReportsOverviewResponse['scope']['role'],
+  ): string {
     if (role === 'SUPER_ADMIN') return 'Superadministrador';
     return 'Administrador';
   }
 
-  private formatGroupByLabel(groupBy: ReportsOverviewResponse['filters']['group_by']): string {
+  private formatGroupByLabel(
+    groupBy: ReportsOverviewResponse['filters']['group_by'],
+  ): string {
     switch (groupBy) {
       case 'day':
         return 'Dia';
@@ -1763,6 +2070,11 @@ export class ReportsService {
       timeZone,
     }).format(new Date(value));
   }
+
+  private currencyNumberFormat(currency: string): string {
+    return `#,##0.00 "${currency.replace(/"/g, '')}"`;
+  }
+
   private assertValidTimezone(timeZone: string): void {
     try {
       new Intl.DateTimeFormat('en-US', { timeZone }).format(new Date());

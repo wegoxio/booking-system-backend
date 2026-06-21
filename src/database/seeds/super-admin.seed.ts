@@ -11,7 +11,9 @@ async function main() {
   const password = process.env.SUPERADMIN_PASSWORD;
 
   if (!name || !email || !password) {
-    throw new Error('Missing SUPERADMIN_NAME / SUPERADMIN_EMAIL / SUPERADMIN_PASSWORD in .env');
+    throw new Error(
+      'Missing SUPERADMIN_NAME / SUPERADMIN_EMAIL / SUPERADMIN_PASSWORD in .env',
+    );
   }
 
   await AppDataSource.initialize();

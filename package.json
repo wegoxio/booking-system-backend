@@ -29,9 +29,9 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1008.0",
-    "@nestjs/common": "^11.0.1",
+    "@nestjs/common": "^11.1.18",
     "@nestjs/config": "^4.0.3",
-    "@nestjs/core": "^11.0.1",
+    "@nestjs/core": "^11.1.18",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/passport": "^11.0.5",
@@ -42,7 +42,7 @@
     "@types/cookie-parser": "^1.4.10",
     "argon2": "^0.44.0",
     "class-transformer": "^0.5.1",
-    "class-validator": "^0.15.1",
+    "class-validator": "^0.14.2",
     "cookie-parser": "^1.4.7",
     "cron": "^4.4.0",
     "dotenv": "^17.3.1",
@@ -56,6 +56,22 @@
     "rxjs": "^7.8.1",
     "typeorm": "^0.3.28",
     "zod": "^4.3.6"
+  },
+  "pnpm": {
+    "overrides": {
+      "multer": "2.2.0",
+      "typeorm": "0.3.29",
+      "path-to-regexp": "8.4.0",
+      "qs": "6.15.2",
+      "fast-xml-parser": "5.7.0",
+      "fast-xml-builder": "1.1.7",
+      "lodash": "4.18.0",
+      "tmp": "0.2.7",
+      "file-type": "21.3.2",
+      "brace-expansion@<2.0.0": "1.1.13",
+      "brace-expansion@>=2.0.0 <3.0.0": "2.0.3",
+      "uuid": "11.1.1"
+    }
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

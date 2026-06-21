@@ -115,7 +115,9 @@ export class AccountAccessService {
 
     if (
       user.role === 'TENANT_ADMIN' &&
-      (!user.email_verified_at || !user.password_hash || !user.onboarding_completed_at)
+      (!user.email_verified_at ||
+        !user.password_hash ||
+        !user.onboarding_completed_at)
     ) {
       await this.sendTenantAdminSetupLink(user, {
         requestedByUserId: null,
@@ -177,39 +179,41 @@ export class AccountAccessService {
     expires_at: Date;
     email_verified_at: Date;
   }> {
-    const result = await this.userAccessTokensRepo.manager.transaction(async (manager) => {
-      const token = await this.findActiveTokenForUpdate(
-        manager,
-        'TENANT_ADMIN_INVITATION',
-        rawToken,
-      );
-      const user = await this.loadTokenUserForUpdate(manager, token.user_id);
+    const result = await this.userAccessTokensRepo.manager.transaction(
+      async (manager) => {
+        const token = await this.findActiveTokenForUpdate(
+          manager,
+          'TENANT_ADMIN_INVITATION',
+          rawToken,
+        );
+        const user = await this.loadTokenUserForUpdate(manager, token.user_id);
 
-      this.assertTenantAdminSetupUser(user, token.email_snapshot);
+        this.assertTenantAdminSetupUser(user, token.email_snapshot);
 
-      const now = new Date();
-      let didVerifyEmail = false;
-      if (!user.email_verified_at) {
-        user.email_verified_at = now;
-        await manager.getRepository(User).save(user);
-        didVerifyEmail = true;
-      }
+        const now = new Date();
+        let didVerifyEmail = false;
+        if (!user.email_verified_at) {
+          user.email_verified_at = now;
+          await manager.getRepository(User).save(user);
+          didVerifyEmail = true;
+        }
 
-      return {
-        email: user.email,
-        name: user.name,
-        tenant: {
-          id: user.tenant!.id,
-          name: user.tenant!.name,
-          slug: user.tenant!.slug,
-        },
-        expires_at: token.expires_at,
-        email_verified_at: user.email_verified_at ?? now,
-        did_verify_email: didVerifyEmail,
-        user_id: user.id,
-        tenant_id: user.tenant_id ?? null,
-      };
-    });
+        return {
+          email: user.email,
+          name: user.name,
+          tenant: {
+            id: user.tenant!.id,
+            name: user.tenant!.name,
+            slug: user.tenant!.slug,
+          },
+          expires_at: token.expires_at,
+          email_verified_at: user.email_verified_at ?? now,
+          did_verify_email: didVerifyEmail,
+          user_id: user.id,
+          tenant_id: user.tenant_id ?? null,
+        };
+      },
+    );
 
     if (result.did_verify_email) {
       await this.auditService.log({
@@ -243,38 +247,40 @@ export class AccountAccessService {
   ): Promise<{ success: true; email: string }> {
     const normalizedContext = this.normalizeContext(context);
 
-    const result = await this.userAccessTokensRepo.manager.transaction(async (manager) => {
-      const token = await this.findActiveTokenForUpdate(
-        manager,
-        'TENANT_ADMIN_INVITATION',
-        input.token,
-      );
-      const usersRepo = manager.getRepository(User);
-      const user = await this.loadTokenUserForUpdate(manager, token.user_id);
+    const result = await this.userAccessTokensRepo.manager.transaction(
+      async (manager) => {
+        const token = await this.findActiveTokenForUpdate(
+          manager,
+          'TENANT_ADMIN_INVITATION',
+          input.token,
+        );
+        const usersRepo = manager.getRepository(User);
+        const user = await this.loadTokenUserForUpdate(manager, token.user_id);
 
-      this.assertTenantAdminSetupUser(user, token.email_snapshot);
+        this.assertTenantAdminSetupUser(user, token.email_snapshot);
 
-      const now = new Date();
-      user.name = input.name.trim();
-      user.password_hash = await argon2.hash(input.password);
-      user.email_verified_at = user.email_verified_at ?? now;
-      user.onboarding_completed_at = now;
-      user.failed_login_attempts = 0;
-      user.last_failed_login_at = null;
-      user.locked_until = null;
-      await usersRepo.save(user);
+        const now = new Date();
+        user.name = input.name.trim();
+        user.password_hash = await argon2.hash(input.password);
+        user.email_verified_at = user.email_verified_at ?? now;
+        user.onboarding_completed_at = now;
+        user.failed_login_attempts = 0;
+        user.last_failed_login_at = null;
+        user.locked_until = null;
+        await usersRepo.save(user);
 
-      token.consumed_at = now;
-      await manager.getRepository(UserAccessToken).save(token);
-      await this.invalidateOtherActiveTokens(manager, user.id, now, token.id);
+        token.consumed_at = now;
+        await manager.getRepository(UserAccessToken).save(token);
+        await this.invalidateOtherActiveTokens(manager, user.id, now, token.id);
 
-      return {
-        success: true,
-        email: user.email,
-        user_id: user.id,
-        tenant_id: user.tenant_id ?? null,
-      };
-    });
+        return {
+          success: true,
+          email: user.email,
+          user_id: user.id,
+          tenant_id: user.tenant_id ?? null,
+        };
+      },
+    );
 
     await this.auditService.log({
       actor_user_id: result.user_id,
@@ -325,42 +331,48 @@ export class AccountAccessService {
   ): Promise<{ success: true; email: string }> {
     const normalizedContext = this.normalizeContext(context);
 
-    const result = await this.userAccessTokensRepo.manager.transaction(async (manager) => {
-      const token = await this.findActiveTokenForUpdate(
-        manager,
-        'PASSWORD_RESET',
-        input.token,
-      );
-      const usersRepo = manager.getRepository(User);
-      const user = await usersRepo.findOne({
-        where: { id: token.user_id },
-        lock: { mode: 'pessimistic_write' },
-      });
+    const result = await this.userAccessTokensRepo.manager.transaction(
+      async (manager) => {
+        const token = await this.findActiveTokenForUpdate(
+          manager,
+          'PASSWORD_RESET',
+          input.token,
+        );
+        const usersRepo = manager.getRepository(User);
+        const user = await usersRepo.findOne({
+          where: { id: token.user_id },
+          lock: { mode: 'pessimistic_write' },
+        });
 
-      if (!user || !user.is_active || token.email_snapshot !== user.email) {
-        throw new UnauthorizedException('Enlace inválido o expirado.');
-      }
+        if (!user || !user.is_active || token.email_snapshot !== user.email) {
+          throw new UnauthorizedException('Enlace inválido o expirado.');
+        }
 
-      const now = new Date();
-      user.password_hash = await argon2.hash(input.password);
-      user.failed_login_attempts = 0;
-      user.last_failed_login_at = null;
-      user.locked_until = null;
-      user.token_version = (user.token_version ?? 0) + 1;
-      await usersRepo.save(user);
+        const now = new Date();
+        user.password_hash = await argon2.hash(input.password);
+        user.failed_login_attempts = 0;
+        user.last_failed_login_at = null;
+        user.locked_until = null;
+        user.token_version = (user.token_version ?? 0) + 1;
+        await usersRepo.save(user);
 
-      token.consumed_at = now;
-      await manager.getRepository(UserAccessToken).save(token);
-      await this.invalidateOtherActiveTokens(manager, user.id, now, token.id);
-      await this.revokeAllActiveSessionsForUser(manager, user.id, 'PASSWORD_RESET');
+        token.consumed_at = now;
+        await manager.getRepository(UserAccessToken).save(token);
+        await this.invalidateOtherActiveTokens(manager, user.id, now, token.id);
+        await this.revokeAllActiveSessionsForUser(
+          manager,
+          user.id,
+          'PASSWORD_RESET',
+        );
 
-      return {
-        success: true,
-        email: user.email,
-        user_id: user.id,
-        tenant_id: user.tenant_id ?? null,
-      };
-    });
+        return {
+          success: true,
+          email: user.email,
+          user_id: user.id,
+          tenant_id: user.tenant_id ?? null,
+        };
+      },
+    );
 
     await this.auditService.log({
       actor_user_id: result.user_id,
@@ -645,12 +657,9 @@ export class AccountAccessService {
       return;
     }
 
-    await manager.getRepository(UserAccessToken).update(
-      activeTokenIds,
-      {
-        invalidated_at: now,
-      },
-    );
+    await manager.getRepository(UserAccessToken).update(activeTokenIds, {
+      invalidated_at: now,
+    });
   }
 
   private async revokeAllActiveSessionsForUser(

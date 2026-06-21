@@ -361,7 +361,8 @@ export class NotificationsService {
       booking: input.booking,
     });
 
-    const replyTo = this.configService.get<string>('MAIL_REPLY_TO_EMAIL') ?? null;
+    const replyTo =
+      this.configService.get<string>('MAIL_REPLY_TO_EMAIL') ?? null;
 
     await this.emailProvider.send({
       to: input.recipient,
@@ -456,7 +457,8 @@ export class NotificationsService {
       return explicitMailAssetBaseUrl.replace(/\/+$/, '');
     }
 
-    const bucket = this.configService.get<string>('AWS_S3_BUCKET')?.trim() || null;
+    const bucket =
+      this.configService.get<string>('AWS_S3_BUCKET')?.trim() || null;
     const region = this.configService.get<string>('AWS_REGION')?.trim() || null;
     if (bucket && region) {
       return `https://${bucket}.s3.${region}.amazonaws.com`;
@@ -492,7 +494,8 @@ export class NotificationsService {
       throw new Error('MAIL_ENABLED=false');
     }
 
-    const replyTo = this.configService.get<string>('MAIL_REPLY_TO_EMAIL') ?? null;
+    const replyTo =
+      this.configService.get<string>('MAIL_REPLY_TO_EMAIL') ?? null;
 
     await this.emailProvider.send({
       to: input.to,

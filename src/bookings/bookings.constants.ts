@@ -1,6 +1,14 @@
-export const BOOKING_BLOCKING_STATUSES = ['PENDING', 'CONFIRMED', 'IN_PROGRESS'] as const;
+export const BOOKING_BLOCKING_STATUSES = [
+  'PENDING',
+  'CONFIRMED',
+  'IN_PROGRESS',
+] as const;
 
-export const BOOKING_FINAL_STATUSES = ['COMPLETED', 'CANCELLED', 'NO_SHOW'] as const;
+export const BOOKING_FINAL_STATUSES = [
+  'COMPLETED',
+  'CANCELLED',
+  'NO_SHOW',
+] as const;
 
 export const BOOKING_CANCELLATION_STATUSES = ['CANCELLED', 'NO_SHOW'] as const;
 
@@ -13,7 +21,10 @@ export const BOOKING_STATUSES = [
 
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
-export const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, readonly BookingStatus[]> = {
+export const BOOKING_STATUS_TRANSITIONS: Record<
+  BookingStatus,
+  readonly BookingStatus[]
+> = {
   PENDING: ['CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW'],
   CONFIRMED: ['IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW'],
   IN_PROGRESS: ['COMPLETED', 'CANCELLED', 'NO_SHOW'],

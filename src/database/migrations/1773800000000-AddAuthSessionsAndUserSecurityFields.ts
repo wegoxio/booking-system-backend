@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddAuthSessionsAndUserSecurityFields1773800000000
-  implements MigrationInterface
-{
+export class AddAuthSessionsAndUserSecurityFields1773800000000 implements MigrationInterface {
   name = 'AddAuthSessionsAndUserSecurityFields1773800000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -61,9 +59,7 @@ export class AddAuthSessionsAndUserSecurityFields1773800000000
     await queryRunner.query(
       `DROP INDEX "public"."IDX_auth_sessions_expires_at"`,
     );
-    await queryRunner.query(
-      `DROP INDEX "public"."IDX_auth_sessions_user_id"`,
-    );
+    await queryRunner.query(`DROP INDEX "public"."IDX_auth_sessions_user_id"`);
     await queryRunner.query(`DROP TABLE "auth_sessions"`);
 
     await queryRunner.query(`ALTER TABLE "users" DROP COLUMN "last_login_at"`);

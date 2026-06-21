@@ -86,9 +86,7 @@ export function normalizePhoneInput({
 
   if (hasStructuredPhoneInput) {
     if (!normalizedCountryIso2 || !normalizedNationalNumber) {
-      throw new BadRequestException(
-        `${fieldLabel} requiere país y número`,
-      );
+      throw new BadRequestException(`${fieldLabel} requiere país y número`);
     }
 
     return toStructuredPhone(

@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 
@@ -17,6 +18,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { ToggleServiceStatusDto } from './dto/toggle-service.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 type CurrentJwtUser = {
   sub: string;
@@ -31,13 +33,19 @@ export class ServicesController {
   constructor(private readonly servicesService: ServicesService) {}
 
   @Post()
-  create(@Body() dto: CreateServiceDto, @CurrentUser() currentUser: CurrentJwtUser) {
+  create(
+    @Body() dto: CreateServiceDto,
+    @CurrentUser() currentUser: CurrentJwtUser,
+  ) {
     return this.servicesService.create(dto, currentUser);
   }
 
   @Get()
-  findAll(@CurrentUser() currentUser: CurrentJwtUser) {
-    return this.servicesService.findAll(currentUser);
+  findAll(
+    @Query() query: PaginationQueryDto,
+    @CurrentUser() currentUser: CurrentJwtUser,
+  ) {
+    return this.servicesService.findAll(currentUser, query);
   }
 
   @Get(':id')

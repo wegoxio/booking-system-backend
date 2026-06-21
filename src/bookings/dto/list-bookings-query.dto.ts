@@ -4,6 +4,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Length,
   IsUUID,
   Matches,
   Max,
@@ -19,6 +20,11 @@ export class ListBookingsQueryDto {
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   date?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(2, 64)
+  timezone?: string;
 
   @IsOptional()
   @IsIn(BOOKING_STATUSES)

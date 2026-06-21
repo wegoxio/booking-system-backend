@@ -25,7 +25,9 @@ async function run(): Promise<void> {
   const options = parseOptions(process.argv.slice(2));
 
   if (!options.force) {
-    throw new Error('Missing --force flag. Example: pnpm run db:reset -- --force');
+    throw new Error(
+      'Missing --force flag. Example: pnpm run db:reset -- --force',
+    );
   }
 
   if (process.env.NODE_ENV === 'production' && !options.allowProduction) {
@@ -51,7 +53,9 @@ async function run(): Promise<void> {
       `,
     );
 
-    const tableNames: string[] = rows.map((row: { tablename: string }) => row.tablename);
+    const tableNames: string[] = rows.map(
+      (row: { tablename: string }) => row.tablename,
+    );
 
     if (tableNames.length === 0) {
       console.log('No tables found to truncate.');
@@ -60,14 +64,17 @@ async function run(): Promise<void> {
     }
 
     const qualifiedTables = tableNames.map(
-      (tableName) => `${quoteIdentifier('public')}.${quoteIdentifier(tableName)}`,
+      (tableName) =>
+        `${quoteIdentifier('public')}.${quoteIdentifier(tableName)}`,
     );
 
     const truncateSql = `TRUNCATE TABLE ${qualifiedTables.join(', ')} RESTART IDENTITY CASCADE`;
     await queryRunner.query(truncateSql);
 
     await queryRunner.commitTransaction();
-    console.log(`Database reset completed. Truncated ${tableNames.length} tables.`);
+    console.log(
+      `Database reset completed. Truncated ${tableNames.length} tables.`,
+    );
   } catch (error) {
     await queryRunner.rollbackTransaction();
     throw error;
@@ -81,4 +88,3 @@ run().catch((error) => {
   console.error('Database reset failed:', error);
   process.exit(1);
 });
-

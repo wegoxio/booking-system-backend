@@ -21,4 +21,3 @@ export class DashboardController {
     return this.dashboardService.getOverview(currentUser, query);
   }
 }
-

@@ -6,10 +6,11 @@ import { User } from './entities/user.entity';
 import { Tenant } from '../tenant/entities/tenant.entity';
 import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
+import { AuthSession } from '../auth/entities/auth-session.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Tenant]),
+    TypeOrmModule.forFeature([User, Tenant, AuthSession]),
     AuditModule,
     AuthModule,
   ],

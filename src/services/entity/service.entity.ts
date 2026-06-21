@@ -44,6 +44,12 @@ export class Service extends BaseEntity {
   @Column({ type: 'int', default: 1 })
   capacity: number;
 
+  @Column({ type: 'int', default: 1 })
+  min_capacity: number;
+
+  @Column({ type: 'int', default: 1 })
+  max_capacity: number;
+
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   price: string;
 

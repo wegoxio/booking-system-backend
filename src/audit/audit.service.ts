@@ -3,7 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { AuditLog } from './entities/audit-log.entity';
 import { resolveAuditMessage } from './audit-message.utils';
-import { AuditLogListItem, CreateAuditLogInput, ListAuditLogsInput } from './types';
+import {
+  AuditLogListItem,
+  CreateAuditLogInput,
+  ListAuditLogsInput,
+} from './types';
 import { CurrentJwtUser } from '../auth/types';
 
 @Injectable()
@@ -57,7 +61,9 @@ export class AuditService {
 
     if (currentUser.role === 'TENANT_ADMIN') {
       if (!currentUser.tenant_id) {
-        throw new BadRequestException('El contexto del negocio es obligatorio.');
+        throw new BadRequestException(
+          'El contexto del negocio es obligatorio.',
+        );
       }
       qb.andWhere('audit.tenant_id = :tenantId', {
         tenantId: currentUser.tenant_id,
@@ -107,10 +113,13 @@ export class AuditService {
 
     if (input.date?.trim()) {
       const { start, end } = this.getUtcRangeForDate(input.date.trim());
-      qb.andWhere('audit.created_at >= :dateStart AND audit.created_at < :dateEnd', {
-        dateStart: start,
-        dateEnd: end,
-      });
+      qb.andWhere(
+        'audit.created_at >= :dateStart AND audit.created_at < :dateEnd',
+        {
+          dateStart: start,
+          dateEnd: end,
+        },
+      );
     } else {
       if (input.date_from?.trim()) {
         const { start } = this.getUtcRangeForDate(input.date_from.trim());
@@ -128,15 +137,28 @@ export class AuditService {
         new Brackets((subQb) => {
           subQb
             .where('audit.action ILIKE :queryText', { queryText })
-            .orWhere('COALESCE(audit.message, \'\') ILIKE :queryText', { queryText })
-            .orWhere('COALESCE(audit.entity, \'\') ILIKE :queryText', { queryText })
-            .orWhere('COALESCE(audit.entity_id, \'\') ILIKE :queryText', { queryText })
-            .orWhere('COALESCE(actor.name, \'\') ILIKE :queryText', { queryText })
-            .orWhere('COALESCE(actor.email, \'\') ILIKE :queryText', { queryText })
-            .orWhere('COALESCE(tenant.name, \'\') ILIKE :queryText', { queryText })
-            .orWhere('CAST(COALESCE(audit.metadata, \'{}\') AS text) ILIKE :queryText', {
+            .orWhere("COALESCE(audit.message, '') ILIKE :queryText", {
               queryText,
-            });
+            })
+            .orWhere("COALESCE(audit.entity, '') ILIKE :queryText", {
+              queryText,
+            })
+            .orWhere("COALESCE(audit.entity_id, '') ILIKE :queryText", {
+              queryText,
+            })
+            .orWhere("COALESCE(actor.name, '') ILIKE :queryText", { queryText })
+            .orWhere("COALESCE(actor.email, '') ILIKE :queryText", {
+              queryText,
+            })
+            .orWhere("COALESCE(tenant.name, '') ILIKE :queryText", {
+              queryText,
+            })
+            .orWhere(
+              "CAST(COALESCE(audit.metadata, '{}') AS text) ILIKE :queryText",
+              {
+                queryText,
+              },
+            );
         }),
       );
     }
@@ -201,7 +223,9 @@ export class AuditService {
 
   private getUtcRangeForDate(value: string): { start: Date; end: Date } {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      throw new BadRequestException('Formato de fecha inválido. Usa YYYY-MM-DD');
+      throw new BadRequestException(
+        'Formato de fecha inválido. Usa YYYY-MM-DD',
+      );
     }
 
     const start = new Date(`${value}T00:00:00.000Z`);

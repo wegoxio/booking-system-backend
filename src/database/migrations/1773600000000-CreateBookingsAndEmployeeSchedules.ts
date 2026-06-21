@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateBookingsAndEmployeeSchedules1773600000000
-  implements MigrationInterface
-{
+export class CreateBookingsAndEmployeeSchedules1773600000000 implements MigrationInterface {
   name = 'CreateBookingsAndEmployeeSchedules1773600000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -131,15 +129,11 @@ export class CreateBookingsAndEmployeeSchedules1773600000000
       `ALTER TABLE "bookings" DROP CONSTRAINT "FK_bookings_tenant"`,
     );
     await queryRunner.query(`DROP INDEX "public"."IDX_bookings_status"`);
-    await queryRunner.query(
-      `DROP INDEX "public"."IDX_bookings_employee_id"`,
-    );
+    await queryRunner.query(`DROP INDEX "public"."IDX_bookings_employee_id"`);
     await queryRunner.query(
       `DROP INDEX "public"."IDX_bookings_tenant_employee_start"`,
     );
-    await queryRunner.query(
-      `DROP INDEX "public"."IDX_bookings_tenant_start"`,
-    );
+    await queryRunner.query(`DROP INDEX "public"."IDX_bookings_tenant_start"`);
     await queryRunner.query(`DROP TABLE "bookings"`);
 
     await queryRunner.query(

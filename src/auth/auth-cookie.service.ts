@@ -70,7 +70,8 @@ export class AuthCookieService {
   assertCsrfToken(req: Request): string {
     const cookieTokens = this.readCsrfTokensFromRequest(req);
     const headerValue = req.header(this.csrfHeaderName);
-    const headerToken = typeof headerValue === 'string' ? headerValue.trim() : '';
+    const headerToken =
+      typeof headerValue === 'string' ? headerValue.trim() : '';
 
     if (cookieTokens.length === 0 || !headerToken) {
       throw new ForbiddenException('Token CSRF faltante.');
@@ -201,7 +202,9 @@ export class AuthCookieService {
         secure: this.refreshCookieSecure,
         sameSite: this.refreshCookieSameSite,
         path,
-        ...(this.refreshCookieDomain ? { domain: this.refreshCookieDomain } : {}),
+        ...(this.refreshCookieDomain
+          ? { domain: this.refreshCookieDomain }
+          : {}),
       });
     }
   }
@@ -219,12 +222,17 @@ export class AuthCookieService {
         secure: this.refreshCookieSecure,
         sameSite: this.refreshCookieSameSite,
         path,
-        ...(this.refreshCookieDomain ? { domain: this.refreshCookieDomain } : {}),
+        ...(this.refreshCookieDomain
+          ? { domain: this.refreshCookieDomain }
+          : {}),
       });
     }
   }
 
-  private collectCookiePaths(primaryPath: string, legacyPaths: string[]): string[] {
+  private collectCookiePaths(
+    primaryPath: string,
+    legacyPaths: string[],
+  ): string[] {
     const uniquePaths = new Set<string>();
     uniquePaths.add(primaryPath);
 
@@ -247,4 +255,3 @@ export class AuthCookieService {
     return prefixed;
   }
 }
-
