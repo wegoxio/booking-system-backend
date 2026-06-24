@@ -4,6 +4,7 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -11,6 +12,7 @@ import {
   IsString,
   IsUUID,
   Length,
+  Matches,
   Max,
   Min,
 } from 'class-validator';
@@ -48,7 +50,43 @@ export class CreateServiceDto {
   @IsOptional()
   @IsInt()
   @IsPositive()
-  capacity?: number = 1;
+  @Max(100)
+  capacity?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  min_capacity?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  max_capacity?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  min_party_size?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  max_party_size?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  slot_capacity?: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['FLAT', 'PER_PERSON'])
+  pricing_model?: 'FLAT' | 'PER_PERSON';
 
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
@@ -57,6 +95,7 @@ export class CreateServiceDto {
   @IsOptional()
   @IsString()
   @Length(3, 3)
+  @Matches(/^[A-Za-z]{3}$/)
   currency?: string = 'USD';
 
   @IsOptional()

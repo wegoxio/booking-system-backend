@@ -173,13 +173,12 @@ function getIntro(
 
 function buildServicesMarkup(booking: BookingNotificationPayload): string {
   return booking.services
-    .map(
-      (service) => {
-        const instructionsMarkup = service.instructions
-          ? `<div style="margin-top: 8px; font-size: 12px; line-height: 1.6; color: #92400e;">Indicaciones: ${escapeHtml(service.instructions)}</div>`
-          : '';
+    .map((service) => {
+      const instructionsMarkup = service.instructions
+        ? `<div style="margin-top: 8px; font-size: 12px; line-height: 1.6; color: #92400e;">Indicaciones: ${escapeHtml(service.instructions)}</div>`
+        : '';
 
-        return `
+      return `
         <tr class="service-row">
           <td style="padding: 10px 0; border-bottom: 1px solid rgba(148,163,184,0.16);">
             <div style="font-size: 14px; font-weight: 700; color: #111827;">${escapeHtml(service.name)}</div>
@@ -191,8 +190,7 @@ function buildServicesMarkup(booking: BookingNotificationPayload): string {
           </td>
         </tr>
       `;
-      },
-    )
+    })
     .join('');
 }
 
@@ -204,15 +202,29 @@ export function buildBookingLifecycleEmail(input: {
   appPublicUrl: string;
   assetBaseUrl?: string | null;
 }): { subject: string; html: string; text: string } {
-  const { event, audience, business, booking, appPublicUrl, assetBaseUrl } = input;
-  const subject = getSubject(event, audience, business.tenantName, booking.customerName);
+  const { event, audience, business, booking, appPublicUrl, assetBaseUrl } =
+    input;
+  const subject = getSubject(
+    event,
+    audience,
+    business.tenantName,
+    booking.customerName,
+  );
   const headline = getHeadline(event, audience, business.tenantName);
   const intro = getIntro(event, audience, booking);
-  const startAtText = formatDateTime(booking.startAtUtc, booking.employeeTimezone || 'UTC');
-  const endAtText = formatDateTime(booking.endAtUtc, booking.employeeTimezone || 'UTC');
-  const normalizedAssetBaseUrl = assetBaseUrl?.trim().replace(/\/+$/, '') || null;
-  const logoSourceUrl = business.logoKey && normalizedAssetBaseUrl
-    ? `${normalizedAssetBaseUrl}/${business.logoKey.replace(/^\/+/, '')}`
+  const startAtText = formatDateTime(
+    booking.startAtUtc,
+    booking.employeeTimezone || 'UTC',
+  );
+  const endAtText = formatDateTime(
+    booking.endAtUtc,
+    booking.employeeTimezone || 'UTC',
+  );
+  const normalizedAssetBaseUrl =
+    assetBaseUrl?.trim().replace(/\/+$/, '') || null;
+  const logoSourceUrl =
+    business.logoKey && normalizedAssetBaseUrl
+      ? `${normalizedAssetBaseUrl}/${business.logoKey.replace(/^\/+/, '')}`
       : business.branding.logoUrl.startsWith('http')
         ? business.branding.logoUrl
         : normalizedAssetBaseUrl

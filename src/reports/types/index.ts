@@ -88,6 +88,7 @@ export type ReportsOverviewResponse = {
     service_id: string | null;
     source: ReportBookingSource | null;
     status: ReportBookingStatus | null;
+    currency: string;
     top_limit: number;
   };
   summary: ReportsSummary;

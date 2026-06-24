@@ -10,7 +10,10 @@ import { Employee } from '../../employees/entities/employee.entity';
 import { Service } from '../../services/entity/service.entity';
 import { Tenant } from '../../tenant/entities/tenant.entity';
 import { User } from '../../users/entities/user.entity';
-import type { BookingSource, BookingStatus } from '../../bookings/bookings.constants';
+import type {
+  BookingSource,
+  BookingStatus,
+} from '../../bookings/bookings.constants';
 
 const SEED_MARKER = '[SEED_REPORTS_DEMO]';
 const CURRENCY = 'USD';
@@ -224,7 +227,11 @@ function pickStatus(startAtUtc: Date): BookingStatus {
   ]);
 }
 
-function buildBookingLifecycle(status: BookingStatus, startAtUtc: Date, endAtUtc: Date): {
+function buildBookingLifecycle(
+  status: BookingStatus,
+  startAtUtc: Date,
+  endAtUtc: Date,
+): {
   completed_at_utc: Date | null;
   completed_by_user_id: string | null;
   cancelled_at_utc: Date | null;
@@ -288,9 +295,12 @@ function pickReminderStatus(): BookingReminder['status'] {
 }
 
 async function main() {
-  const tenantName = process.env.DEMO_REPORTS_TENANT_NAME?.trim() || 'Barbería Demo Wegox';
-  const tenantSlug = process.env.DEMO_REPORTS_TENANT_SLUG?.trim() || 'barberia-demo-wegox';
-  const adminName = process.env.DEMO_REPORTS_ADMIN_NAME?.trim() || 'Wilfredo Demo';
+  const tenantName =
+    process.env.DEMO_REPORTS_TENANT_NAME?.trim() || 'Barbería Demo Wegox';
+  const tenantSlug =
+    process.env.DEMO_REPORTS_TENANT_SLUG?.trim() || 'barberia-demo-wegox';
+  const adminName =
+    process.env.DEMO_REPORTS_ADMIN_NAME?.trim() || 'Wilfredo Demo';
   const adminEmail =
     process.env.DEMO_REPORTS_ADMIN_EMAIL?.trim().toLowerCase() ||
     'wilfredo.demo@barberia-demo-wegox.com';
@@ -474,7 +484,10 @@ async function main() {
       continue;
     }
 
-    const desiredServiceCount = randomInt(1, Math.min(3, employeeServices.length));
+    const desiredServiceCount = randomInt(
+      1,
+      Math.min(3, employeeServices.length),
+    );
     const selectedServices = [...employeeServices]
       .sort(() => Math.random() - 0.5)
       .slice(0, desiredServiceCount);
@@ -485,7 +498,9 @@ async function main() {
     startBase.setUTCDate(startBase.getUTCDate() + dayOffset);
     const hour = randomInt(8, 19);
     const minute = randomItem([0, 15, 30, 45]);
-    const startAtUtc = new Date(startBase.getTime() + hour * 60 * 60 * 1000 + minute * 60 * 1000);
+    const startAtUtc = new Date(
+      startBase.getTime() + hour * 60 * 60 * 1000 + minute * 60 * 1000,
+    );
 
     const totalDurationMinutes = selectedServices.reduce(
       (sum, service) =>
@@ -495,7 +510,9 @@ async function main() {
         service.buffer_after_minutes,
       0,
     );
-    const endAtUtc = new Date(startAtUtc.getTime() + totalDurationMinutes * 60 * 1000);
+    const endAtUtc = new Date(
+      startAtUtc.getTime() + totalDurationMinutes * 60 * 1000,
+    );
 
     const totalPrice = selectedServices.reduce(
       (sum, service) => sum + Number(service.price),
@@ -507,7 +524,9 @@ async function main() {
     const customer = randomItem(customerProfiles);
 
     const leadTimeHours = randomInt(2, 24 * 18);
-    const createdAtCandidate = new Date(startAtUtc.getTime() - leadTimeHours * 60 * 60 * 1000);
+    const createdAtCandidate = new Date(
+      startAtUtc.getTime() - leadTimeHours * 60 * 60 * 1000,
+    );
     const createdAt =
       createdAtCandidate.getTime() <= nowUtc.getTime()
         ? createdAtCandidate
@@ -593,7 +612,9 @@ async function main() {
           scheduled_for_utc: reminderScheduledForUtc,
           attempts_count: reminderStatus === 'PENDING' ? 0 : randomInt(1, 3),
           last_attempt_at:
-            reminderStatus === 'PENDING' ? null : new Date(reminderScheduledForUtc),
+            reminderStatus === 'PENDING'
+              ? null
+              : new Date(reminderScheduledForUtc),
           next_attempt_at:
             reminderStatus === 'FAILED'
               ? new Date(reminderScheduledForUtc.getTime() + 15 * 60 * 1000)
@@ -603,7 +624,9 @@ async function main() {
               ? new Date(reminderScheduledForUtc)
               : null,
           sent_at:
-            reminderStatus === 'SENT' ? new Date(reminderScheduledForUtc) : null,
+            reminderStatus === 'SENT'
+              ? new Date(reminderScheduledForUtc)
+              : null,
           last_error:
             reminderStatus === 'FAILED'
               ? 'Error temporal de proveedor de correo'
@@ -630,7 +653,9 @@ async function main() {
           scheduled_for_utc: reminderScheduledForUtc,
           attempts_count: reminderStatus === 'PENDING' ? 0 : randomInt(1, 3),
           last_attempt_at:
-            reminderStatus === 'PENDING' ? null : new Date(reminderScheduledForUtc),
+            reminderStatus === 'PENDING'
+              ? null
+              : new Date(reminderScheduledForUtc),
           next_attempt_at:
             reminderStatus === 'FAILED'
               ? new Date(reminderScheduledForUtc.getTime() + 15 * 60 * 1000)
@@ -640,7 +665,9 @@ async function main() {
               ? new Date(reminderScheduledForUtc)
               : null,
           sent_at:
-            reminderStatus === 'SENT' ? new Date(reminderScheduledForUtc) : null,
+            reminderStatus === 'SENT'
+              ? new Date(reminderScheduledForUtc)
+              : null,
           last_error:
             reminderStatus === 'FAILED'
               ? 'Error temporal de proveedor de correo'

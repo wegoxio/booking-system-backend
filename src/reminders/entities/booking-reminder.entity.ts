@@ -7,14 +7,7 @@ import type {
   BookingReminderStatus,
   BookingReminderType,
 } from '../reminders.constants';
-import {
-  Column,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  Unique,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, Unique } from 'typeorm';
 
 @Entity('booking_reminders')
 @Unique('UQ_booking_reminders_delivery', [
@@ -25,8 +18,14 @@ import {
 ])
 @Index('IDX_booking_reminders_booking_id', ['booking_id'])
 @Index('IDX_booking_reminders_tenant_id', ['tenant_id'])
-@Index('IDX_booking_reminders_status_scheduled_for', ['status', 'scheduled_for_utc'])
-@Index('IDX_booking_reminders_status_next_attempt', ['status', 'next_attempt_at'])
+@Index('IDX_booking_reminders_status_scheduled_for', [
+  'status',
+  'scheduled_for_utc',
+])
+@Index('IDX_booking_reminders_status_next_attempt', [
+  'status',
+  'next_attempt_at',
+])
 export class BookingReminder extends TenantBaseEntity {
   @Column({ type: 'uuid' })
   booking_id: string;

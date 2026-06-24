@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { AvailabilityQueryDto } from './dto/availability-query.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { EligibleEmployeesQueryDto } from './dto/eligible-employees-query.dto';
@@ -51,7 +61,14 @@ export class BookingsPublicController {
     @Param('tenantSlug') tenantSlug: string,
     @Body() dto: CreatePublicBookingDto,
     @Req() req: Request,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
+    const normalizedIdempotencyKey = idempotencyKey?.trim() ?? '';
+    if (!/^[A-Za-z0-9_-]{16,128}$/.test(normalizedIdempotencyKey)) {
+      throw new BadRequestException(
+        'Idempotency-Key es obligatorio y debe contener entre 16 y 128 caracteres seguros.',
+      );
+    }
     await this.turnstileService.verifyOrThrow({
       token: dto.captcha_token,
       ip: req.ip ?? null,
@@ -61,11 +78,13 @@ export class BookingsPublicController {
       ),
     });
 
-    const { captcha_token: _captchaToken, ...bookingPayload } = dto;
+    const bookingPayload = { ...dto };
+    delete bookingPayload.captcha_token;
 
     return this.bookingsService.createPublicBookingByTenantSlug(
       tenantSlug,
       bookingPayload as CreateBookingDto,
+      normalizedIdempotencyKey,
     );
   }
 }

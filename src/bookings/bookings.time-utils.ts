@@ -111,9 +111,16 @@ export function addDaysToDateString(date: string, days: number): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-export function getUtcRangeForLocalDate(date: string, timeZone: string): TimeInterval {
+export function getUtcRangeForLocalDate(
+  date: string,
+  timeZone: string,
+): TimeInterval {
   const start = zonedDateTimeToUtc(date, '00:00', timeZone);
-  const end = zonedDateTimeToUtc(addDaysToDateString(date, 1), '00:00', timeZone);
+  const end = zonedDateTimeToUtc(
+    addDaysToDateString(date, 1),
+    '00:00',
+    timeZone,
+  );
   return { start, end };
 }
 
@@ -172,7 +179,9 @@ export function subtractIntervals(
     }
   }
 
-  return free.filter((interval) => interval.end.getTime() > interval.start.getTime());
+  return free.filter(
+    (interval) => interval.end.getTime() > interval.start.getTime(),
+  );
 }
 
 export function generateSlots(
@@ -202,7 +211,11 @@ export function generateSlots(
 }
 
 export function hasOverlappingTimeRanges(
-  ranges: Array<{ day_of_week: number; start_time_local: string; end_time_local: string }>,
+  ranges: Array<{
+    day_of_week: number;
+    start_time_local: string;
+    end_time_local: string;
+  }>,
 ): boolean {
   const grouped = new Map<number, Array<{ start: number; end: number }>>();
 

@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
@@ -143,13 +147,18 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales inválidas.');
     }
 
-    const passwordMatches = await argon2.verify(user.password_hash, dto.password);
+    const passwordMatches = await argon2.verify(
+      user.password_hash,
+      dto.password,
+    );
     if (!passwordMatches) {
       await this.registerFailedLoginAttempt(user.id, normalizedContext);
       throw new UnauthorizedException('Credenciales inválidas.');
     }
 
-    const validatedUser = await this.ensureUserAndTenantContextForSession(user.id);
+    const validatedUser = await this.ensureUserAndTenantContextForSession(
+      user.id,
+    );
     const updatedUser = await this.resetLoginSecurityState(validatedUser.id);
 
     const { tokens, session } = await this.createSessionTokens(
@@ -253,32 +262,32 @@ export class AuthService {
         );
 
         if (isBenignRotatedReplay) {
-          const { tokens, session } = await this.createSessionTokens(
-            user,
-            normalizedContext,
-            manager,
-          );
-
           await this.auditService.log({
             actor_user_id: user.id,
             tenant_id: user.tenant_id ?? null,
-            action: 'AUTH_REFRESH_DUPLICATE_RECOVERED',
+            action: 'AUTH_REFRESH_DUPLICATE_REJECTED',
             entity: 'auth',
             entity_id: user.id,
             metadata: {
               replayed_session_id: currentSession.id,
-              recovered_session_id: session.id,
+              replaced_by_session_id: currentSession.replaced_by_session_id,
               reason: currentSession.revocation_reason ?? 'ROTATED',
             },
             ip: normalizedContext.ip,
             user_agent: normalizedContext.user_agent,
           });
 
-          return tokens;
+          throw new UnauthorizedException(
+            'La sesiÃ³n ya fue rotada. Reintenta con la cookie actual.',
+          );
         }
 
         if (currentSession.revocation_reason === 'ROTATED') {
-          await this.revokeAllActiveSessionsForUser(manager, user.id, 'REUSE_DETECTED');
+          await this.revokeAllActiveSessionsForUser(
+            manager,
+            user.id,
+            'REUSE_DETECTED',
+          );
         }
 
         await this.auditService.log({
@@ -289,7 +298,8 @@ export class AuthService {
           entity_id: user.id,
           metadata: {
             session_id: currentSession.id,
-            reason: currentSession.revocation_reason ?? 'SESSION_ALREADY_REVOKED',
+            reason:
+              currentSession.revocation_reason ?? 'SESSION_ALREADY_REVOKED',
           },
           ip: normalizedContext.ip,
           user_agent: normalizedContext.user_agent,
@@ -298,7 +308,11 @@ export class AuthService {
       }
 
       if (currentSession.token_jti !== payload.jti) {
-        await this.revokeAllActiveSessionsForUser(manager, user.id, 'REUSE_DETECTED');
+        await this.revokeAllActiveSessionsForUser(
+          manager,
+          user.id,
+          'REUSE_DETECTED',
+        );
         await this.auditService.log({
           actor_user_id: user.id,
           tenant_id: user.tenant_id ?? null,
@@ -342,7 +356,11 @@ export class AuthService {
         token,
       );
       if (!refreshTokenMatches) {
-        await this.revokeAllActiveSessionsForUser(manager, user.id, 'REUSE_DETECTED');
+        await this.revokeAllActiveSessionsForUser(
+          manager,
+          user.id,
+          'REUSE_DETECTED',
+        );
         await this.auditService.log({
           actor_user_id: user.id,
           tenant_id: user.tenant_id ?? null,
@@ -407,24 +425,39 @@ export class AuthService {
       return { success: true };
     }
 
-    const now = new Date();
-    const session = await this.authSessionsRepo.findOne({
-      where: { id: payload.sid, user_id: payload.sub },
-    });
+    const result = await this.authSessionsRepo.manager.transaction(
+      async (manager) => {
+        const session = await manager.getRepository(AuthSession).findOne({
+          where: { id: payload.sid, user_id: payload.sub },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!session) return null;
 
-    if (!session) {
+        if (!this.csrfTokenMatches(csrfToken, session.csrf_token_hash)) {
+          throw new UnauthorizedException('Sesión inválida.');
+        }
+
+        const now = new Date();
+        let revokedSessions = 0;
+        if (!session.revoked_at) {
+          session.revoked_at = now;
+          session.revocation_reason = 'LOGOUT';
+          session.last_used_at = now;
+          await manager.getRepository(AuthSession).save(session);
+          revokedSessions = 1;
+        } else if (session.revocation_reason === 'ROTATED') {
+          revokedSessions = await this.revokeAllActiveSessionsForUser(
+            manager,
+            payload.sub,
+            'LOGOUT_RACE',
+          );
+        }
+        return { sessionId: session.id, revokedSessions };
+      },
+    );
+
+    if (!result) {
       return { success: true };
-    }
-
-    if (!this.csrfTokenMatches(csrfToken, session.csrf_token_hash)) {
-      throw new UnauthorizedException('Sesión inválida.');
-    }
-
-    if (!session.revoked_at) {
-      session.revoked_at = now;
-      session.revocation_reason = 'LOGOUT';
-      session.last_used_at = now;
-      await this.authSessionsRepo.save(session);
     }
 
     const user = await this.usersRepo.findOne({
@@ -438,7 +471,8 @@ export class AuthService {
       entity: 'auth',
       entity_id: payload.sub,
       metadata: {
-        session_id: session.id,
+        session_id: result.sessionId,
+        revoked_sessions: result.revokedSessions,
       },
       ip: normalizedContext.ip,
       user_agent: normalizedContext.user_agent,
@@ -581,7 +615,9 @@ export class AuthService {
     }
   }
 
-  private async ensureUserAndTenantContextForSession(userId: string): Promise<User> {
+  private async ensureUserAndTenantContextForSession(
+    userId: string,
+  ): Promise<User> {
     const user = await this.usersRepo.findOne({
       where: { id: userId },
       relations: { tenant: true },
@@ -601,7 +637,9 @@ export class AuthService {
       }
 
       if (!user.email_verified_at) {
-        throw new ForbiddenException('El correo electrónico no está verificado.');
+        throw new ForbiddenException(
+          'El correo electrónico no está verificado.',
+        );
       }
     }
 
@@ -635,7 +673,10 @@ export class AuthService {
     return user.locked_until.getTime() > Date.now();
   }
 
-  private shouldResetFailedAttempts(lastFailedAt: Date | null, now: Date): boolean {
+  private shouldResetFailedAttempts(
+    lastFailedAt: Date | null,
+    now: Date,
+  ): boolean {
     if (!lastFailedAt) return false;
     const resetThresholdMs = this.failedAttemptsResetMinutes * 60_000;
     return now.getTime() - lastFailedAt.getTime() >= resetThresholdMs;
@@ -657,7 +698,9 @@ export class AuthService {
       if (!lockedUser) return;
 
       let attempts = lockedUser.failed_login_attempts ?? 0;
-      if (this.shouldResetFailedAttempts(lockedUser.last_failed_login_at, now)) {
+      if (
+        this.shouldResetFailedAttempts(lockedUser.last_failed_login_at, now)
+      ) {
         attempts = 0;
       }
 
@@ -667,7 +710,9 @@ export class AuthService {
 
       let accountLocked = false;
       if (attempts >= this.maxFailedAttempts) {
-        lockedUser.locked_until = new Date(now.getTime() + this.lockMinutes * 60_000);
+        lockedUser.locked_until = new Date(
+          now.getTime() + this.lockMinutes * 60_000,
+        );
         accountLocked = true;
       }
 
@@ -729,7 +774,10 @@ export class AuthService {
     };
   }
 
-  private buildRefreshPayload(user: User, session: AuthSession): RefreshJwtPayload {
+  private buildRefreshPayload(
+    user: User,
+    session: AuthSession,
+  ): RefreshJwtPayload {
     return {
       sub: user.id,
       sid: session.id,
@@ -739,7 +787,7 @@ export class AuthService {
   }
 
   private getRefreshTokenExpirationDate(refreshToken: string): Date {
-    const decoded = this.jwt.decode(refreshToken) as { exp?: number } | null;
+    const decoded = this.jwt.decode(refreshToken);
     if (typeof decoded?.exp !== 'number') {
       return new Date(Date.now() + DEFAULT_REFRESH_TOKEN_EXP_SECONDS * 1000);
     }
@@ -754,7 +802,9 @@ export class AuthService {
     context: NormalizedAuthRequestContext,
     manager?: EntityManager,
   ): Promise<{ tokens: AuthTokensBundle; session: AuthSession }> {
-    const sessionRepo = (manager ?? this.authSessionsRepo.manager).getRepository(AuthSession);
+    const sessionRepo = (
+      manager ?? this.authSessionsRepo.manager
+    ).getRepository(AuthSession);
     const now = new Date();
 
     const session = sessionRepo.create({
@@ -772,11 +822,16 @@ export class AuthService {
       last_used_at: now,
     });
 
-    const accessToken = this.jwt.sign(this.buildAccessPayload(user, session.id));
-    const refreshToken = this.jwt.sign(this.buildRefreshPayload(user, session), {
-      secret: this.refreshTokenSecret,
-      expiresIn: this.refreshTokenExpiresIn,
-    });
+    const accessToken = this.jwt.sign(
+      this.buildAccessPayload(user, session.id),
+    );
+    const refreshToken = this.jwt.sign(
+      this.buildRefreshPayload(user, session),
+      {
+        secret: this.refreshTokenSecret,
+        expiresIn: this.refreshTokenExpiresIn,
+      },
+    );
     const csrfToken = this.generateCsrfToken();
 
     session.expires_at = this.getRefreshTokenExpirationDate(refreshToken);
@@ -836,10 +891,14 @@ export class AuthService {
       return false;
     }
 
-    return session.ip === context.ip && session.user_agent === context.user_agent;
+    return (
+      session.ip === context.ip && session.user_agent === context.user_agent
+    );
   }
 
-  private normalizeContext(context?: AuthRequestContext): NormalizedAuthRequestContext {
+  private normalizeContext(
+    context?: AuthRequestContext,
+  ): NormalizedAuthRequestContext {
     const ip = context?.ip?.trim() ?? '';
     const userAgent = context?.user_agent?.trim() ?? '';
 

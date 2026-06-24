@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { resolveAuditMessage } from '../audit/audit-message.utils';
 import { AuditLog } from '../audit/entities/audit-log.entity';
@@ -15,8 +19,14 @@ import { User } from '../users/entities/user.entity';
 import { Repository } from 'typeorm';
 import { DashboardOverviewQueryDto } from './dto/dashboard-overview-query.dto';
 import type { CurrentJwtUser } from '../auth/types';
-import { DashboardChartPoint, DashboardEmployeeTableRow, DashboardOverviewResponse, DashboardRecentLog, DashboardTenantTableRow, PeriodSummary } from './types';
-
+import {
+  DashboardChartPoint,
+  DashboardEmployeeTableRow,
+  DashboardOverviewResponse,
+  DashboardRecentLog,
+  DashboardTenantTableRow,
+  PeriodSummary,
+} from './types';
 
 @Injectable()
 export class DashboardService {
@@ -44,6 +54,10 @@ export class DashboardService {
     const months = this.normalizeMonths(query.months);
     const logsLimit = this.normalizeLogsLimit(query.logs_limit);
     const tableLimit = this.normalizeTableLimit(query.table_limit);
+    const currency = await this.resolveDashboardCurrency(
+      currentUser.role === 'TENANT_ADMIN' ? currentUser.tenant_id : null,
+      query.currency,
+    );
 
     if (currentUser.role === 'SUPER_ADMIN') {
       return this.buildSuperAdminOverview({
@@ -51,6 +65,7 @@ export class DashboardService {
         months,
         logsLimit,
         tableLimit,
+        currency,
       });
     }
 
@@ -59,6 +74,7 @@ export class DashboardService {
       months,
       logsLimit,
       tableLimit,
+      currency,
     });
   }
 
@@ -67,6 +83,7 @@ export class DashboardService {
     months: number;
     logsLimit: number;
     tableLimit: number;
+    currency: string;
   }): Promise<DashboardOverviewResponse> {
     const currentMonthStart = this.getUtcMonthStart(new Date());
     const nextMonthStart = this.addUtcMonths(currentMonthStart, 1);
@@ -85,15 +102,36 @@ export class DashboardService {
       this.tenantRepository.count(),
       this.tenantRepository.count({ where: { is_active: true } }),
       this.usersRepository.count({ where: { role: 'TENANT_ADMIN' } }),
-      this.getPeriodSummary(currentMonthStart, nextMonthStart),
-      this.getPeriodSummary(previousMonthStart, currentMonthStart),
-      this.getChart(input.months),
+      this.getPeriodSummary(
+        currentMonthStart,
+        nextMonthStart,
+        undefined,
+        input.currency,
+      ),
+      this.getPeriodSummary(
+        previousMonthStart,
+        currentMonthStart,
+        undefined,
+        input.currency,
+      ),
+      this.getChart(input.months, undefined, input.currency),
       this.getRecentLogs(input.logsLimit),
-      this.getSuperAdminTenantsTable(input.tableLimit, currentMonthStart, nextMonthStart),
+      this.getSuperAdminTenantsTable(
+        input.tableLimit,
+        currentMonthStart,
+        nextMonthStart,
+        input.currency,
+      ),
     ]);
 
-    const bookingsDelta = this.getDelta(currentSummary.bookings, previousSummary.bookings);
-    const revenueDelta = this.getDelta(currentSummary.revenue, previousSummary.revenue);
+    const bookingsDelta = this.getDelta(
+      currentSummary.bookings,
+      previousSummary.bookings,
+    );
+    const revenueDelta = this.getDelta(
+      currentSummary.revenue,
+      previousSummary.revenue,
+    );
 
     return {
       role: 'SUPER_ADMIN',
@@ -125,7 +163,10 @@ export class DashboardService {
         {
           key: 'revenue_month',
           label: 'Revenue del mes',
-          value: this.formatCurrency(currentSummary.revenue, currentSummary.currency),
+          value: this.formatCurrency(
+            currentSummary.revenue,
+            currentSummary.currency,
+          ),
           hint: `mes anterior: ${this.formatCurrency(previousSummary.revenue, previousSummary.currency)}`,
           delta: revenueDelta,
         },
@@ -143,6 +184,7 @@ export class DashboardService {
     months: number;
     logsLimit: number;
     tableLimit: number;
+    currency: string;
   }): Promise<DashboardOverviewResponse> {
     const tenantId = input.currentUser.tenant_id;
     if (!tenantId) {
@@ -170,22 +212,45 @@ export class DashboardService {
     ] = await Promise.all([
       this.tenantRepository.findOne({ where: { id: tenantId } }),
       this.servicesRepository.count({ where: { tenant_id: tenantId } }),
-      this.servicesRepository.count({ where: { tenant_id: tenantId, is_active: true } }),
+      this.servicesRepository.count({
+        where: { tenant_id: tenantId, is_active: true },
+      }),
       this.employeesRepository.count({ where: { tenant_id: tenantId } }),
-      this.employeesRepository.count({ where: { tenant_id: tenantId, is_active: true } }),
+      this.employeesRepository.count({
+        where: { tenant_id: tenantId, is_active: true },
+      }),
       this.countBookingsInRange(todayStart, tomorrowStart, tenantId),
-      this.getPeriodSummary(currentMonthStart, nextMonthStart, tenantId),
-      this.getPeriodSummary(previousMonthStart, currentMonthStart, tenantId),
-      this.getChart(input.months, tenantId),
+      this.getPeriodSummary(
+        currentMonthStart,
+        nextMonthStart,
+        tenantId,
+        input.currency,
+      ),
+      this.getPeriodSummary(
+        previousMonthStart,
+        currentMonthStart,
+        tenantId,
+        input.currency,
+      ),
+      this.getChart(input.months, tenantId, input.currency),
       this.getRecentLogs(input.logsLimit, tenantId),
-      this.getTenantEmployeesTable(tenantId, input.tableLimit, currentMonthStart, nextMonthStart),
+      this.getTenantEmployeesTable(
+        tenantId,
+        input.tableLimit,
+        currentMonthStart,
+        nextMonthStart,
+        input.currency,
+      ),
     ]);
 
     if (!tenant) {
       throw new NotFoundException('No se encontró el negocio.');
     }
 
-    const revenueDelta = this.getDelta(currentSummary.revenue, previousSummary.revenue);
+    const revenueDelta = this.getDelta(
+      currentSummary.revenue,
+      previousSummary.revenue,
+    );
 
     return {
       role: 'TENANT_ADMIN',
@@ -217,7 +282,10 @@ export class DashboardService {
         {
           key: 'revenue_month',
           label: 'Revenue del mes',
-          value: this.formatCurrency(currentSummary.revenue, currentSummary.currency),
+          value: this.formatCurrency(
+            currentSummary.revenue,
+            currentSummary.currency,
+          ),
           hint: `mes anterior: ${this.formatCurrency(previousSummary.revenue, previousSummary.currency)}`,
           delta: revenueDelta,
         },
@@ -240,6 +308,7 @@ export class DashboardService {
     startAt: Date,
     endAt: Date,
     tenantId?: string,
+    currency = 'USD',
   ): Promise<PeriodSummary> {
     const qb = this.bookingsRepository
       .createQueryBuilder('booking')
@@ -248,11 +317,15 @@ export class DashboardService {
         `COALESCE(SUM(CASE WHEN booking.status IN (:...revenueStatuses) THEN booking.total_price ELSE 0 END), 0)::numeric`,
         'revenue_sum',
       )
-      .where('booking.start_at_utc >= :startAt AND booking.start_at_utc < :endAt', {
-        startAt,
-        endAt,
-      })
+      .where(
+        'booking.start_at_utc >= :startAt AND booking.start_at_utc < :endAt',
+        {
+          startAt,
+          endAt,
+        },
+      )
       .setParameter('revenueStatuses', [...BOOKING_REVENUE_STATUSES]);
+    qb.andWhere('booking.currency = :currency', { currency });
 
     if (tenantId) {
       qb.andWhere('booking.tenant_id = :tenantId', { tenantId });
@@ -263,13 +336,36 @@ export class DashboardService {
       revenue_sum: string;
     }>();
 
-    const currency = await this.resolvePeriodCurrency(startAt, endAt, tenantId);
-
     return {
       bookings: this.toNumber(summary?.bookings_count),
       revenue: this.toNumber(summary?.revenue_sum),
       currency,
     };
+  }
+
+  private async resolveDashboardCurrency(
+    tenantId: string | null,
+    requestedCurrency?: string,
+  ): Promise<string> {
+    if (requestedCurrency?.trim()) {
+      return requestedCurrency.trim().toUpperCase();
+    }
+
+    const qb = this.bookingsRepository
+      .createQueryBuilder('booking')
+      .select('booking.currency', 'currency')
+      .distinct(true)
+      .limit(2);
+    if (tenantId) {
+      qb.where('booking.tenant_id = :tenantId', { tenantId });
+    }
+    const rows = await qb.getRawMany<{ currency: string }>();
+    if (rows.length > 1) {
+      throw new BadRequestException(
+        'El panel contiene varias divisas. Selecciona una divisa para mostrar importes comparables.',
+      );
+    }
+    return rows[0]?.currency?.toUpperCase() || 'USD';
   }
 
   private async resolvePeriodCurrency(
@@ -281,10 +377,13 @@ export class DashboardService {
       .createQueryBuilder('booking')
       .select('booking.currency', 'currency')
       .addSelect('COUNT(*)::int', 'count')
-      .where('booking.start_at_utc >= :startAt AND booking.start_at_utc < :endAt', {
-        startAt,
-        endAt,
-      })
+      .where(
+        'booking.start_at_utc >= :startAt AND booking.start_at_utc < :endAt',
+        {
+          startAt,
+          endAt,
+        },
+      )
       .groupBy('booking.currency')
       .orderBy('COUNT(*)', 'DESC')
       .limit(1);
@@ -297,14 +396,21 @@ export class DashboardService {
     return topCurrency?.currency || 'USD';
   }
 
-  private async getChart(months: number, tenantId?: string): Promise<DashboardChartPoint[]> {
+  private async getChart(
+    months: number,
+    tenantId?: string,
+    currency = 'USD',
+  ): Promise<DashboardChartPoint[]> {
     const monthStarts = this.buildMonthStarts(months);
     const rangeStart = monthStarts[0];
     const rangeEnd = this.addUtcMonths(this.getUtcMonthStart(new Date()), 1);
 
     const qb = this.bookingsRepository
       .createQueryBuilder('booking')
-      .select(`TO_CHAR(DATE_TRUNC('month', booking.start_at_utc), 'YYYY-MM')`, 'month_key')
+      .select(
+        `TO_CHAR(DATE_TRUNC('month', booking.start_at_utc), 'YYYY-MM')`,
+        'month_key',
+      )
       .addSelect('COUNT(*)::int', 'bookings_count')
       .addSelect(
         `COUNT(*) FILTER (WHERE booking.status IN ('${BOOKING_CANCELLATION_STATUSES.join("','")}'))::int`,
@@ -314,11 +420,15 @@ export class DashboardService {
         `COALESCE(SUM(CASE WHEN booking.status IN (:...revenueStatuses) THEN booking.total_price ELSE 0 END), 0)::numeric`,
         'revenue_sum',
       )
-      .where('booking.start_at_utc >= :rangeStart AND booking.start_at_utc < :rangeEnd', {
-        rangeStart,
-        rangeEnd,
-      })
+      .where(
+        'booking.start_at_utc >= :rangeStart AND booking.start_at_utc < :rangeEnd',
+        {
+          rangeStart,
+          rangeEnd,
+        },
+      )
       .setParameter('revenueStatuses', [...BOOKING_REVENUE_STATUSES])
+      .andWhere('booking.currency = :currency', { currency })
       .groupBy(`DATE_TRUNC('month', booking.start_at_utc)`)
       .orderBy(`DATE_TRUNC('month', booking.start_at_utc)`, 'ASC');
 
@@ -349,7 +459,10 @@ export class DashboardService {
     });
   }
 
-  private async getRecentLogs(limit: number, tenantId?: string): Promise<DashboardRecentLog[]> {
+  private async getRecentLogs(
+    limit: number,
+    tenantId?: string,
+  ): Promise<DashboardRecentLog[]> {
     const qb = this.auditLogsRepository
       .createQueryBuilder('audit')
       .leftJoin('audit.actor', 'actor')
@@ -402,9 +515,61 @@ export class DashboardService {
     limit: number,
     monthStart: Date,
     nextMonthStart: Date,
+    currency: string,
   ): Promise<DashboardTenantTableRow[]> {
-    const [tenants, tenantAdminsRows, employeeAggRows, bookingAggRows] = await Promise.all([
-      this.tenantRepository.find({ order: { name: 'ASC' } }),
+    const tenantRows = await this.tenantRepository
+      .createQueryBuilder('tenant')
+      .leftJoin(
+        (subQb) =>
+          subQb
+            .select('booking.tenant_id', 'tenant_id')
+            .addSelect('COUNT(*)::int', 'bookings_count')
+            .addSelect(
+              `COALESCE(SUM(CASE WHEN booking.status IN (:...revenueStatuses) THEN booking.total_price ELSE 0 END), 0)::numeric`,
+              'revenue_sum',
+            )
+            .from(Booking, 'booking')
+            .where(
+              'booking.start_at_utc >= :monthStart AND booking.start_at_utc < :nextMonthStart',
+            )
+            .andWhere('booking.currency = :currency')
+            .groupBy('booking.tenant_id'),
+        'booking_agg',
+        'booking_agg.tenant_id = tenant.id',
+      )
+      .select('tenant.id', 'tenant_id')
+      .addSelect('tenant.name', 'tenant_name')
+      .addSelect('tenant.slug', 'tenant_slug')
+      .addSelect('tenant.is_active', 'tenant_is_active')
+      .addSelect(
+        'COALESCE(booking_agg.bookings_count, 0)::int',
+        'bookings_count',
+      )
+      .addSelect('COALESCE(booking_agg.revenue_sum, 0)::numeric', 'revenue_sum')
+      .setParameters({
+        monthStart,
+        nextMonthStart,
+        revenueStatuses: [...BOOKING_REVENUE_STATUSES],
+        currency,
+      })
+      .orderBy('COALESCE(booking_agg.bookings_count, 0)', 'DESC')
+      .addOrderBy('tenant.name', 'ASC')
+      .limit(limit)
+      .getRawMany<{
+        tenant_id: string;
+        tenant_name: string;
+        tenant_slug: string;
+        tenant_is_active: boolean | string;
+        bookings_count: string;
+        revenue_sum: string;
+      }>();
+
+    const tenantIds = tenantRows.map((row) => row.tenant_id);
+    if (tenantIds.length === 0) {
+      return [];
+    }
+
+    const [tenantAdminsRows, employeeAggRows] = await Promise.all([
       this.usersRepository
         .createQueryBuilder('user')
         .select('user.tenant_id', 'tenant_id')
@@ -413,7 +578,7 @@ export class DashboardService {
         .addSelect('user.is_active', 'is_active')
         .addSelect('user.created_at', 'created_at')
         .where('user.role = :role', { role: 'TENANT_ADMIN' })
-        .andWhere('user.tenant_id IS NOT NULL')
+        .andWhere('user.tenant_id IN (:...tenantIds)', { tenantIds })
         .orderBy('user.created_at', 'ASC')
         .getRawMany<{
           tenant_id: string;
@@ -430,38 +595,21 @@ export class DashboardService {
           'COUNT(*) FILTER (WHERE employee.is_active = true)::int',
           'active_count',
         )
+        .where('employee.tenant_id IN (:...tenantIds)', { tenantIds })
         .groupBy('employee.tenant_id')
         .getRawMany<{
           tenant_id: string;
           total_count: string;
           active_count: string;
         }>(),
-      this.bookingsRepository
-        .createQueryBuilder('booking')
-        .select('booking.tenant_id', 'tenant_id')
-        .addSelect('COUNT(*)::int', 'bookings_count')
-        .addSelect(
-          `COALESCE(SUM(CASE WHEN booking.status IN (:...revenueStatuses) THEN booking.total_price ELSE 0 END), 0)::numeric`,
-          'revenue_sum',
-        )
-        .where('booking.start_at_utc >= :monthStart AND booking.start_at_utc < :nextMonthStart', {
-          monthStart,
-          nextMonthStart,
-        })
-        .setParameter('revenueStatuses', [...BOOKING_REVENUE_STATUSES])
-        .groupBy('booking.tenant_id')
-        .getRawMany<{
-          tenant_id: string;
-          bookings_count: string;
-          revenue_sum: string;
-        }>(),
     ]);
-    const tenantLogoByTenant = await this.getTenantLogosByTenantId(
-      tenants.map((tenant) => tenant.id),
-    );
+    const tenantLogoByTenant = await this.getTenantLogosByTenantId(tenantIds);
 
     const tenantAdminsCountByTenant = new Map<string, number>();
-    const primaryAdminByTenant = new Map<string, { name: string; email: string }>();
+    const primaryAdminByTenant = new Map<
+      string,
+      { name: string; email: string }
+    >();
 
     for (const row of tenantAdminsRows) {
       if (!row.tenant_id) continue;
@@ -496,44 +644,26 @@ export class DashboardService {
       ]),
     );
 
-    const bookingsAggByTenant = new Map(
-      bookingAggRows.map((row) => [
-        row.tenant_id,
-        {
-          bookings_count: this.toNumber(row.bookings_count),
-          revenue_sum: this.toNumber(row.revenue_sum),
-        },
-      ]),
-    );
+    return tenantRows.map<DashboardTenantTableRow>((tenant) => {
+      const admin = primaryAdminByTenant.get(tenant.tenant_id);
+      const employeeAgg = employeeAggByTenant.get(tenant.tenant_id);
 
-    return tenants
-      .map<DashboardTenantTableRow>((tenant) => {
-        const admin = primaryAdminByTenant.get(tenant.id);
-        const employeeAgg = employeeAggByTenant.get(tenant.id);
-        const bookingAgg = bookingsAggByTenant.get(tenant.id);
-
-        return {
-          tenant_id: tenant.id,
-          tenant_name: tenant.name,
-          tenant_slug: tenant.slug,
-          tenant_logo_url: tenantLogoByTenant.get(tenant.id) ?? null,
-          tenant_is_active: tenant.is_active,
-          primary_admin_name: admin?.name ?? null,
-          primary_admin_email: admin?.email ?? null,
-          tenant_admins_count: tenantAdminsCountByTenant.get(tenant.id) ?? 0,
-          active_employees_count: employeeAgg?.active_count ?? 0,
-          total_employees_count: employeeAgg?.total_count ?? 0,
-          bookings_this_month: bookingAgg?.bookings_count ?? 0,
-          revenue_this_month: bookingAgg?.revenue_sum ?? 0,
-        };
-      })
-      .sort((left, right) => {
-        if (right.bookings_this_month !== left.bookings_this_month) {
-          return right.bookings_this_month - left.bookings_this_month;
-        }
-        return left.tenant_name.localeCompare(right.tenant_name);
-      })
-      .slice(0, limit);
+      return {
+        tenant_id: tenant.tenant_id,
+        tenant_name: tenant.tenant_name,
+        tenant_slug: tenant.tenant_slug,
+        tenant_logo_url: tenantLogoByTenant.get(tenant.tenant_id) ?? null,
+        tenant_is_active: this.toBoolean(tenant.tenant_is_active),
+        primary_admin_name: admin?.name ?? null,
+        primary_admin_email: admin?.email ?? null,
+        tenant_admins_count:
+          tenantAdminsCountByTenant.get(tenant.tenant_id) ?? 0,
+        active_employees_count: employeeAgg?.active_count ?? 0,
+        total_employees_count: employeeAgg?.total_count ?? 0,
+        bookings_this_month: this.toNumber(tenant.bookings_count),
+        revenue_this_month: this.toNumber(tenant.revenue_sum),
+      };
+    });
   }
 
   private async getTenantLogosByTenantId(
@@ -553,14 +683,16 @@ export class DashboardService {
         logo_url: string | null;
       }>();
 
-    return new Map(rows.map((row) => {
-      const normalizedLogo = row.logo_url?.trim() || null;
-      const logoUrl =
-        normalizedLogo && normalizedLogo !== '/bukky-logo.svg'
-          ? normalizedLogo
-          : null;
-      return [row.tenant_id, logoUrl];
-    }));
+    return new Map(
+      rows.map((row) => {
+        const normalizedLogo = row.logo_url?.trim() || null;
+        const logoUrl =
+          normalizedLogo && normalizedLogo !== '/bukky-logo.svg'
+            ? normalizedLogo
+            : null;
+        return [row.tenant_id, logoUrl];
+      }),
+    );
   }
 
   private async getTenantEmployeesTable(
@@ -568,80 +700,64 @@ export class DashboardService {
     limit: number,
     monthStart: Date,
     nextMonthStart: Date,
+    currency: string,
   ): Promise<DashboardEmployeeTableRow[]> {
-    const [employees, bookingAggRows, lastBookingRows] = await Promise.all([
-      this.employeesRepository.find({
-        where: { tenant_id: tenantId },
-        order: { name: 'ASC' },
-      }),
-      this.bookingsRepository
-        .createQueryBuilder('booking')
-        .select('booking.employee_id', 'employee_id')
-        .addSelect('COUNT(*)::int', 'bookings_count')
-        .addSelect(
-          `COALESCE(SUM(CASE WHEN booking.status IN (:...revenueStatuses) THEN booking.total_price ELSE 0 END), 0)::numeric`,
-          'revenue_sum',
-        )
-        .where('booking.tenant_id = :tenantId', { tenantId })
-        .andWhere('booking.start_at_utc >= :monthStart AND booking.start_at_utc < :nextMonthStart', {
-          monthStart,
-          nextMonthStart,
-        })
-        .setParameter('revenueStatuses', [...BOOKING_REVENUE_STATUSES])
-        .groupBy('booking.employee_id')
-        .getRawMany<{
-          employee_id: string;
-          bookings_count: string;
-          revenue_sum: string;
-        }>(),
-      this.bookingsRepository
-        .createQueryBuilder('booking')
-        .select('booking.employee_id', 'employee_id')
-        .addSelect('MAX(booking.start_at_utc)', 'last_booking_at')
-        .where('booking.tenant_id = :tenantId', { tenantId })
-        .groupBy('booking.employee_id')
-        .getRawMany<{
-          employee_id: string;
-          last_booking_at: Date | null;
-        }>(),
-    ]);
-
-    const bookingAggByEmployee = new Map(
-      bookingAggRows.map((row) => [
-        row.employee_id,
-        {
-          bookings_count: this.toNumber(row.bookings_count),
-          revenue_sum: this.toNumber(row.revenue_sum),
-        },
-      ]),
-    );
-    const lastBookingByEmployee = new Map(
-      lastBookingRows.map((row) => [
-        row.employee_id,
-        row.last_booking_at ? new Date(row.last_booking_at).toISOString() : null,
-      ]),
-    );
-
-    return employees
-      .map<DashboardEmployeeTableRow>((employee) => {
-        const bookingAgg = bookingAggByEmployee.get(employee.id);
-        return {
-          employee_id: employee.id,
-          employee_name: employee.name,
-          employee_email: employee.email,
-          employee_is_active: employee.is_active,
-          bookings_this_month: bookingAgg?.bookings_count ?? 0,
-          revenue_this_month: bookingAgg?.revenue_sum ?? 0,
-          last_booking_at: lastBookingByEmployee.get(employee.id) ?? null,
-        };
+    const rows = await this.employeesRepository
+      .createQueryBuilder('employee')
+      .leftJoin(
+        Booking,
+        'booking_month',
+        `booking_month.employee_id = employee.id
+          AND booking_month.tenant_id = employee.tenant_id
+          AND booking_month.start_at_utc >= :monthStart
+          AND booking_month.start_at_utc < :nextMonthStart
+          AND booking_month.currency = :currency`,
+      )
+      .select('employee.id', 'employee_id')
+      .addSelect('employee.name', 'employee_name')
+      .addSelect('employee.email', 'employee_email')
+      .addSelect('employee.is_active', 'employee_is_active')
+      .addSelect('COUNT(booking_month.id)::int', 'bookings_count')
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN booking_month.status IN (:...revenueStatuses) THEN booking_month.total_price ELSE 0 END), 0)::numeric`,
+        'revenue_sum',
+      )
+      .addSelect(
+        `(SELECT MAX(last_booking.start_at_utc) FROM bookings last_booking WHERE last_booking.employee_id = employee.id AND last_booking.tenant_id = employee.tenant_id)`,
+        'last_booking_at',
+      )
+      .where('employee.tenant_id = :tenantId', { tenantId })
+      .setParameters({
+        monthStart,
+        nextMonthStart,
+        currency,
+        revenueStatuses: [...BOOKING_REVENUE_STATUSES],
       })
-      .sort((left, right) => {
-        if (right.bookings_this_month !== left.bookings_this_month) {
-          return right.bookings_this_month - left.bookings_this_month;
-        }
-        return left.employee_name.localeCompare(right.employee_name);
-      })
-      .slice(0, limit);
+      .groupBy('employee.id')
+      .orderBy('COUNT(booking_month.id)', 'DESC')
+      .addOrderBy('employee.name', 'ASC')
+      .limit(limit)
+      .getRawMany<{
+        employee_id: string;
+        employee_name: string;
+        employee_email: string;
+        employee_is_active: boolean | string;
+        bookings_count: string;
+        revenue_sum: string;
+        last_booking_at: Date | null;
+      }>();
+
+    return rows.map((row) => ({
+      employee_id: row.employee_id,
+      employee_name: row.employee_name,
+      employee_email: row.employee_email,
+      employee_is_active: this.toBoolean(row.employee_is_active),
+      bookings_this_month: this.toNumber(row.bookings_count),
+      revenue_this_month: this.toNumber(row.revenue_sum),
+      last_booking_at: row.last_booking_at
+        ? new Date(row.last_booking_at).toISOString()
+        : null,
+    }));
   }
 
   private normalizeMonths(value?: number): number {
@@ -660,19 +776,51 @@ export class DashboardService {
   }
 
   private getUtcMonthStart(date: Date): Date {
-    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1, 0, 0, 0, 0));
+    return new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1, 0, 0, 0, 0),
+    );
   }
 
   private getUtcDayStart(date: Date): Date {
-    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
+    return new Date(
+      Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        0,
+        0,
+        0,
+        0,
+      ),
+    );
   }
 
   private addUtcMonths(date: Date, months: number): Date {
-    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1, 0, 0, 0, 0));
+    return new Date(
+      Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth() + months,
+        1,
+        0,
+        0,
+        0,
+        0,
+      ),
+    );
   }
 
   private addUtcDays(date: Date, days: number): Date {
-    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + days, 0, 0, 0, 0));
+    return new Date(
+      Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate() + days,
+        0,
+        0,
+        0,
+        0,
+      ),
+    );
   }
 
   private buildMonthStarts(months: number): Date[] {
@@ -730,7 +878,13 @@ export class DashboardService {
   }
 
   private toBoolean(value: unknown): boolean {
-    return value === true || value === 'true' || value === 't' || value === 1 || value === '1';
+    return (
+      value === true ||
+      value === 'true' ||
+      value === 't' ||
+      value === 1 ||
+      value === '1'
+    );
   }
 
   private toNumber(value: unknown): number {
@@ -747,10 +901,13 @@ export class DashboardService {
     const qb = this.bookingsRepository
       .createQueryBuilder('booking')
       .select('COUNT(*)::int', 'count')
-      .where('booking.start_at_utc >= :startAt AND booking.start_at_utc < :endAt', {
-        startAt,
-        endAt,
-      });
+      .where(
+        'booking.start_at_utc >= :startAt AND booking.start_at_utc < :endAt',
+        {
+          startAt,
+          endAt,
+        },
+      );
 
     if (tenantId) {
       qb.andWhere('booking.tenant_id = :tenantId', { tenantId });

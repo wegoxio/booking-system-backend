@@ -7,4 +7,3 @@ export class CreatePublicBookingDto extends CreateBookingDto {
   @MaxLength(4096)
   captcha_token?: string;
 }
-

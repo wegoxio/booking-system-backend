@@ -11,8 +11,7 @@ export const BOOKING_REMINDER_STATUSES = [
 
 export type BookingReminderAudience =
   (typeof BOOKING_REMINDER_AUDIENCES)[number];
-export type BookingReminderChannel =
-  (typeof BOOKING_REMINDER_CHANNELS)[number];
+export type BookingReminderChannel = (typeof BOOKING_REMINDER_CHANNELS)[number];
 export type BookingReminderType = (typeof BOOKING_REMINDER_TYPES)[number];
 export type BookingReminderStatus = (typeof BOOKING_REMINDER_STATUSES)[number];
 

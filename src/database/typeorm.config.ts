@@ -9,7 +9,8 @@ function envBool(v: unknown, defaultValue = false): boolean {
 }
 
 function envNumber(v: unknown, defaultValue: number): number {
-  if (v === undefined || v === null || String(v).trim() === '') return defaultValue;
+  if (v === undefined || v === null || String(v).trim() === '')
+    return defaultValue;
 
   const parsed = Number(v);
   if (Number.isNaN(parsed)) {
@@ -25,7 +26,9 @@ function resolvePoolMax(config: ConfigService, nodeEnv: string): number {
     return envNumber(configuredMax, 1);
   }
 
-  const isServerlessRuntime = envBool(config.get('VERCEL'), false) || !!config.get('AWS_LAMBDA_FUNCTION_NAME');
+  const isServerlessRuntime =
+    envBool(config.get('VERCEL'), false) ||
+    !!config.get('AWS_LAMBDA_FUNCTION_NAME');
   return nodeEnv === 'production' && isServerlessRuntime ? 1 : 10;
 }
 
@@ -35,7 +38,11 @@ export function makeTypeOrmConfig(config: ConfigService): TypeOrmModuleOptions {
 
   // En local: siempre NO SSL, aunque env esté raro
   const ssl =
-    nodeEnv === 'development' ? false : (sslFromEnv ? { rejectUnauthorized: false } : false);
+    nodeEnv === 'development'
+      ? false
+      : sslFromEnv
+        ? { rejectUnauthorized: false }
+        : false;
 
   const poolMax = resolvePoolMax(config, nodeEnv);
 
@@ -51,8 +58,14 @@ export function makeTypeOrmConfig(config: ConfigService): TypeOrmModuleOptions {
     logging: envBool(config.get('DB_LOGGING'), false),
     extra: {
       max: poolMax,
-      idleTimeoutMillis: envNumber(config.get('DB_POOL_IDLE_TIMEOUT_MS'), 10_000),
-      connectionTimeoutMillis: envNumber(config.get('DB_POOL_CONNECTION_TIMEOUT_MS'), 10_000),
+      idleTimeoutMillis: envNumber(
+        config.get('DB_POOL_IDLE_TIMEOUT_MS'),
+        10_000,
+      ),
+      connectionTimeoutMillis: envNumber(
+        config.get('DB_POOL_CONNECTION_TIMEOUT_MS'),
+        10_000,
+      ),
       keepAlive: envBool(config.get('DB_POOL_KEEP_ALIVE'), true),
     },
 

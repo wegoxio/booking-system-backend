@@ -10,4 +10,3 @@ export class TenantSettingsPublicController {
     return this.tenantSettingsService.findPublicByBusinessSlug(businessSlug);
   }
 }
-

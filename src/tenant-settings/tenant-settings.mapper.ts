@@ -18,7 +18,9 @@ import { normalizeThemeSettings } from './tenant-theme.utils';
 
 type SettingsEntity = PlatformSetting | TenantSetting;
 
-export function extractThemeSettings(entity: SettingsEntity): TenantThemeSettings {
+export function extractThemeSettings(
+  entity: SettingsEntity,
+): TenantThemeSettings {
   return normalizeThemeSettings({
     primary: entity.primary_color ?? DEFAULT_THEME_SETTINGS.primary,
     secondary: entity.secondary_color ?? DEFAULT_THEME_SETTINGS.secondary,

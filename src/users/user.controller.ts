@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
@@ -15,6 +16,7 @@ import { UserService } from './user.service';
 import { CreateTenantAdminDto } from './dto/create-tenant-admin.dto';
 import { UpdateTenantAdminDto } from './dto/update-tenant-admin.dto';
 import type { CurrentJwtUser } from '../auth/types';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -23,8 +25,8 @@ export class UsersController {
   constructor(private readonly usersService: UserService) {}
 
   @Get('tenant-admins')
-  findTenantAdmins() {
-    return this.usersService.findTenantAdmins();
+  findTenantAdmins(@Query() query: PaginationQueryDto) {
+    return this.usersService.findTenantAdmins(query);
   }
 
   @Get('tenant-admins/:id')

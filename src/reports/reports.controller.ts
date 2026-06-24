@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Get,
-  Query,
-  Res,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -34,7 +28,10 @@ export class ReportsController {
     @CurrentUser() currentUser: CurrentJwtUser,
     @Res() response: Response,
   ): Promise<void> {
-    const exported = await this.reportsService.buildExcelExport(currentUser, query);
+    const exported = await this.reportsService.buildExcelExport(
+      currentUser,
+      query,
+    );
 
     response.setHeader(
       'Content-Type',

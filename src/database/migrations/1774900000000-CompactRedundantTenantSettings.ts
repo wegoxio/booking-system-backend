@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CompactRedundantTenantSettings1774900000000
-  implements MigrationInterface
-{
+export class CompactRedundantTenantSettings1774900000000 implements MigrationInterface {
   name = 'CompactRedundantTenantSettings1774900000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -35,4 +33,3 @@ export class CompactRedundantTenantSettings1774900000000
     // No-op. Deleted redundant rows cannot be restored safely.
   }
 }
-

@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class MakeAuditActorNullable1774400000000
-  implements MigrationInterface
-{
+export class MakeAuditActorNullable1774400000000 implements MigrationInterface {
   name = 'MakeAuditActorNullable1774400000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

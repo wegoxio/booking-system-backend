@@ -15,6 +15,8 @@ export type ReportBookingSource = (typeof REPORT_BOOKING_SOURCES)[number];
 
 export const REPORT_BOOKING_STATUSES = [
   'PENDING',
+  'CONFIRMED',
+  'IN_PROGRESS',
   'COMPLETED',
   'CANCELLED',
   'NO_SHOW',
@@ -78,6 +80,11 @@ export class ReportsOverviewQueryDto {
   @Transform(({ value }) => toOptionalTrimmedString(value))
   @IsIn(REPORT_BOOKING_STATUSES)
   status?: ReportBookingStatus;
+
+  @IsOptional()
+  @Transform(({ value }) => toOptionalTrimmedString(value)?.toUpperCase())
+  @Matches(/^[A-Z]{3}$/)
+  currency?: string;
 
   @IsOptional()
   @Type(() => Number)

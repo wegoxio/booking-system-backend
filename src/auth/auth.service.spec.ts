@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -7,7 +8,13 @@ describe('AuthService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [AuthService],
-    }).compile();
+    })
+      .useMocker((token) =>
+        token === ConfigService
+          ? { get: jest.fn((_key: string, fallback?: unknown) => fallback) }
+          : {},
+      )
+      .compile();
 
     service = module.get<AuthService>(AuthService);
   });

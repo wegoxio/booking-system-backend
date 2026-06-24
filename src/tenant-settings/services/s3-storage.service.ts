@@ -23,7 +23,9 @@ export class S3StorageService {
     const region = this.configService.get<string>('AWS_REGION');
     const bucketName = this.configService.get<string>('AWS_S3_BUCKET');
     const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID');
-    const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY');
+    const secretAccessKey = this.configService.get<string>(
+      'AWS_SECRET_ACCESS_KEY',
+    );
     const sessionToken = this.configService.get<string>('AWS_SESSION_TOKEN');
     const forcePathStyle = this.envBool(
       this.configService.get('AWS_S3_FORCE_PATH_STYLE'),

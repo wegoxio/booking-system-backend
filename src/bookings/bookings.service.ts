@@ -7,11 +7,22 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { AuditService } from '../audit/audit.service';
 import { normalizePhoneInput } from '../common/phone/phone.util';
+import {
+  calculateLineTotal,
+  normalizeMoney,
+} from '../common/money/money.util';
 import { Employee } from '../employees/entities/employee.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Service } from '../services/entity/service.entity';
 import { Tenant } from '../tenant/entities/tenant.entity';
-import { Brackets, DataSource, In, LessThan, MoreThan, Repository } from 'typeorm';
+import {
+  Brackets,
+  DataSource,
+  In,
+  LessThan,
+  MoreThan,
+  Repository,
+} from 'typeorm';
 import { Booking } from './entities/booking.entity';
 import { BookingItem } from './entities/booking-item.entity';
 import { EmployeeScheduleRule } from './entities/employee-schedule-rule.entity';
@@ -22,7 +33,6 @@ import { AvailabilityQueryDto } from './dto/availability-query.dto';
 import { SetEmployeeScheduleDto } from './dto/set-employee-schedule.dto';
 import { CreateEmployeeTimeOffDto } from './dto/create-employee-time-off.dto';
 import {
-  addDaysToDateString,
   formatDateInTimeZone,
   generateSlots,
   getDayOfWeekFromDateString,
@@ -60,6 +70,7 @@ type BookingCreationDtoLike = {
   employee_id: string;
   service_ids: string[];
   start_at_utc: string;
+  party_size?: number;
   customer_name: string;
   customer_email?: string | null;
   customer_phone?: string | null;
@@ -79,6 +90,12 @@ type CreateBookingOptions = {
   allowOverlap?: boolean;
   sendCreateNotifications?: boolean;
   waitForCreateNotifications?: boolean;
+  idempotencyKey?: string | null;
+};
+
+type Interval = {
+  start: Date;
+  end: Date;
 };
 
 @Injectable()
@@ -130,15 +147,21 @@ export class BookingsService {
       },
     });
 
-    const publicEmployeeWorkingDays = await this.buildPublicEmployeeWorkingDaysMap(
-      tenant.id,
-      services.flatMap((service) => service.employees.map((employee) => employee.id)),
-    );
+    const publicEmployeeWorkingDays =
+      await this.buildPublicEmployeeWorkingDaysMap(
+        tenant.id,
+        services.flatMap((service) =>
+          service.employees.map((employee) => employee.id),
+        ),
+      );
 
     return services
       .map((service) => {
         const eligibleEmployees = service.employees
-          .filter((employee) => employee.is_active && employee.tenant_id === tenant.id)
+          .filter(
+            (employee) =>
+              employee.is_active && employee.tenant_id === tenant.id,
+          )
           .map((employee) =>
             this.toPublicBookingEmployee(
               employee,
@@ -156,6 +179,14 @@ export class BookingsService {
           description: service.description,
           instructions: service.instructions,
           duration_minutes: service.duration_minutes,
+          capacity: service.capacity,
+          min_capacity: service.min_capacity,
+          max_capacity: service.max_capacity,
+          min_party_size: service.min_party_size,
+          max_party_size: service.max_party_size,
+          slot_capacity: service.slot_capacity,
+          pricing_model: service.pricing_model,
+          requires_confirmation: service.requires_confirmation,
           price: Number(service.price).toFixed(2),
           currency: service.currency,
           is_active: service.is_active,
@@ -174,10 +205,11 @@ export class BookingsService {
       tenant.id,
       query.service_ids,
     );
-    const publicEmployeeWorkingDays = await this.buildPublicEmployeeWorkingDaysMap(
-      tenant.id,
-      employees.map((employee) => employee.id),
-    );
+    const publicEmployeeWorkingDays =
+      await this.buildPublicEmployeeWorkingDaysMap(
+        tenant.id,
+        employees.map((employee) => employee.id),
+      );
 
     return employees.map((employee) =>
       this.toPublicBookingEmployee(
@@ -212,15 +244,20 @@ export class BookingsService {
         ? 'EMPLOYEE_SCHEDULE_UPDATED'
         : 'EMPLOYEE_SCHEDULE_CREATED';
 
-    const scheduleTimezone = dto.schedule_timezone?.trim() || employee.schedule_timezone || 'UTC';
+    const scheduleTimezone =
+      dto.schedule_timezone?.trim() || employee.schedule_timezone || 'UTC';
     this.assertValidTimezone(scheduleTimezone);
 
     if (hasOverlappingTimeRanges(dto.working_hours)) {
-      throw new BadRequestException('El horario laboral contiene intervalos superpuestos');
+      throw new BadRequestException(
+        'El horario laboral contiene intervalos superpuestos',
+      );
     }
 
     if (dto.breaks && hasOverlappingTimeRanges(dto.breaks)) {
-      throw new BadRequestException('Los descansos contienen intervalos superpuestos');
+      throw new BadRequestException(
+        'Los descansos contienen intervalos superpuestos',
+      );
     }
 
     if (dto.breaks && dto.breaks.length > 0) {
@@ -368,19 +405,46 @@ export class BookingsService {
     }
 
     if (endAt.getTime() <= startAt.getTime()) {
-      throw new BadRequestException('end_at_utc debe ser mayor que start_at_utc');
+      throw new BadRequestException(
+        'end_at_utc debe ser mayor que start_at_utc',
+      );
     }
 
-    const created = await this.employeeTimeOffRepository.save(
-      this.employeeTimeOffRepository.create({
-        tenant_id: tenantId,
-        employee_id: employee.id,
-        start_at_utc: startAt,
-        end_at_utc: endAt,
-        reason: dto.reason?.trim() ?? null,
-        is_active: true,
-      }),
-    );
+    const created = await this.dataSource.transaction(async (manager) => {
+      const lockedEmployee = await manager.getRepository(Employee).findOne({
+        where: { id: employee.id, tenant_id: tenantId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!lockedEmployee) {
+        throw new NotFoundException('No se encontrÃ³ el profesional');
+      }
+
+      const conflictingBooking = await manager.getRepository(Booking).findOne({
+        where: {
+          tenant_id: tenantId,
+          employee_id: employee.id,
+          status: In([...BOOKING_BLOCKING_STATUSES]),
+          busy_start_at_utc: LessThan(endAt),
+          busy_end_at_utc: MoreThan(startAt),
+        },
+      });
+      if (conflictingBooking) {
+        throw new ConflictException(
+          'La ausencia se solapa con una cita activa. Cancela o reasigna la cita antes de bloquear el horario.',
+        );
+      }
+
+      return manager.getRepository(EmployeeTimeOff).save(
+        manager.getRepository(EmployeeTimeOff).create({
+          tenant_id: tenantId,
+          employee_id: employee.id,
+          start_at_utc: startAt,
+          end_at_utc: endAt,
+          reason: dto.reason?.trim() ?? null,
+          is_active: true,
+        }),
+      );
+    });
 
     await this.auditService.log({
       actor_user_id: currentUser.sub,
@@ -469,14 +533,23 @@ export class BookingsService {
   async createPublicBookingByTenantSlug(
     tenantSlug: string,
     dto: CreateBookingDto,
+    idempotencyKey: string,
   ): Promise<PublicBookingConfirmation> {
     const tenant = await this.findActiveTenantBySlug(tenantSlug);
+    const existing = await this.bookingsRepository.findOne({
+      where: { tenant_id: tenant.id, idempotency_key: idempotencyKey },
+      relations: { employee: true, items: true },
+    });
+    if (existing) {
+      return this.toPublicBookingConfirmation(existing);
+    }
     const booking = await this.createBookingForTenant(tenant.id, dto, {
       actorUserId: null,
       source: 'WEB',
       creationMode: 'SLOT',
       sendCreateNotifications: true,
       waitForCreateNotifications: true,
+      idempotencyKey,
     });
     return this.toPublicBookingConfirmation(booking);
   }
@@ -528,10 +601,25 @@ export class BookingsService {
       total: number;
       total_pages: number;
     };
+    summary: { today_count: number };
   }> {
     const tenantId = this.requireTenantId(currentUser);
     const page = this.normalizePage(query.page);
     const limit = this.normalizeLimit(query.limit);
+    const timezone = query.timezone?.trim() || 'UTC';
+    this.assertValidTimezone(timezone);
+    const todayRange = getUtcRangeForLocalDate(
+      formatDateInTimeZone(new Date(), timezone),
+      timezone,
+    );
+    const todayCount = await this.bookingsRepository
+      .createQueryBuilder('today_booking')
+      .where('today_booking.tenant_id = :tenantId', { tenantId })
+      .andWhere(
+        'today_booking.start_at_utc >= :todayStart AND today_booking.start_at_utc < :todayEnd',
+        { todayStart: todayRange.start, todayEnd: todayRange.end },
+      )
+      .getCount();
 
     const baseQb = this.bookingsRepository
       .createQueryBuilder('booking')
@@ -550,14 +638,15 @@ export class BookingsService {
     }
 
     if (query.date) {
-      const start = new Date(`${query.date}T00:00:00.000Z`);
-      const nextDate = addDaysToDateString(query.date, 1);
-      const end = new Date(`${nextDate}T00:00:00.000Z`);
+      const { start, end } = getUtcRangeForLocalDate(query.date, timezone);
 
-      baseQb.andWhere('booking.start_at_utc >= :start AND booking.start_at_utc < :end', {
-        start,
-        end,
-      });
+      baseQb.andWhere(
+        'booking.start_at_utc >= :start AND booking.start_at_utc < :end',
+        {
+          start,
+          end,
+        },
+      );
     }
 
     if (query.q?.trim()) {
@@ -566,24 +655,27 @@ export class BookingsService {
       baseQb.andWhere(
         new Brackets((subQb) => {
           subQb
-            .where('COALESCE(booking.customer_name, \'\') ILIKE :queryText', {
+            .where("COALESCE(booking.customer_name, '') ILIKE :queryText", {
               queryText,
             })
-            .orWhere('COALESCE(booking.customer_email, \'\') ILIKE :queryText', {
+            .orWhere("COALESCE(booking.customer_email, '') ILIKE :queryText", {
               queryText,
             })
-            .orWhere('COALESCE(booking.customer_phone, \'\') ILIKE :queryText', {
+            .orWhere("COALESCE(booking.customer_phone, '') ILIKE :queryText", {
               queryText,
             })
             .orWhere(
-              'COALESCE(booking.customer_phone_national_number, \'\') ILIKE :queryText',
+              "COALESCE(booking.customer_phone_national_number, '') ILIKE :queryText",
               {
                 queryText,
               },
             )
-            .orWhere('COALESCE(booking.customer_phone_e164, \'\') ILIKE :queryText', {
-              queryText,
-            })
+            .orWhere(
+              "COALESCE(booking.customer_phone_e164, '') ILIKE :queryText",
+              {
+                queryText,
+              },
+            )
             .orWhere(
               `EXISTS (
                 SELECT 1
@@ -634,6 +726,7 @@ export class BookingsService {
           total,
           total_pages: totalPages,
         },
+        summary: { today_count: todayCount },
       };
     }
 
@@ -660,6 +753,7 @@ export class BookingsService {
         total,
         total_pages: totalPages,
       },
+      summary: { today_count: todayCount },
     };
   }
 
@@ -673,80 +767,91 @@ export class BookingsService {
     dto: UpdateBookingStatusDto,
     currentUser: CurrentJwtUser,
   ): Promise<Booking> {
-    const booking = await this.findOne(id, currentUser);
-    const previousStatus = booking.status;
+    const tenantId = this.requireTenantId(currentUser);
     const nextStatus = dto.status;
     const cancellationReason = dto.cancellation_reason?.trim() || null;
     const isCancellationStatus = this.isCancellationStatus(nextStatus);
+    const result = await this.dataSource.transaction(async (manager) => {
+      const booking = await manager.getRepository(Booking).findOne({
+        where: { id, tenant_id: tenantId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!booking) {
+        throw new NotFoundException('No se encontrÃ³ la cita');
+      }
 
-    if (!BOOKING_STATUSES.includes(nextStatus)) {
-      throw new BadRequestException('Estado de cita inválido');
+      const previousStatus = booking.status;
+      if (previousStatus === nextStatus) {
+        return { booking, previousStatus, changed: false };
+      }
+
+      const allowedTransitions =
+        BOOKING_STATUS_TRANSITIONS[
+          previousStatus as keyof typeof BOOKING_STATUS_TRANSITIONS
+        ];
+      if (!allowedTransitions?.includes(nextStatus)) {
+        throw new ConflictException(
+          `Cannot transition booking from ${previousStatus} to ${nextStatus}`,
+        );
+      }
+      if (isCancellationStatus && !cancellationReason) {
+        throw new BadRequestException(
+          'Cancellation reason is required when cancelling or marking a booking as no-show',
+        );
+      }
+      if (!isCancellationStatus && cancellationReason) {
+        throw new BadRequestException(
+          'El motivo de cancelación solo puede enviarse para citas canceladas o no asistidas',
+        );
+      }
+
+      booking.status = nextStatus;
+      if (nextStatus === 'COMPLETED') {
+        booking.completed_at_utc = new Date();
+        booking.completed_by_user_id = currentUser.sub;
+        booking.cancelled_at_utc = null;
+        booking.cancelled_by_user_id = null;
+        booking.cancellation_reason = null;
+      } else if (isCancellationStatus) {
+        booking.cancelled_at_utc = new Date();
+        booking.cancelled_by_user_id = currentUser.sub;
+        booking.cancellation_reason = cancellationReason;
+        booking.completed_at_utc = null;
+        booking.completed_by_user_id = null;
+      } else {
+        booking.completed_at_utc = null;
+        booking.completed_by_user_id = null;
+        booking.cancelled_at_utc = null;
+        booking.cancelled_by_user_id = null;
+        booking.cancellation_reason = null;
+      }
+
+      const updated = await manager.getRepository(Booking).save(booking);
+      return { booking: updated, previousStatus, changed: true };
+    });
+
+    if (!result.changed) {
+      return this.findOneByTenantId(result.booking.id, tenantId);
     }
-
-    if (booking.status === nextStatus) {
-      return booking;
-    }
-
-    const allowedTransitions =
-      BOOKING_STATUS_TRANSITIONS[
-        previousStatus as keyof typeof BOOKING_STATUS_TRANSITIONS
-      ];
-    if (!allowedTransitions?.includes(nextStatus)) {
-      throw new BadRequestException(
-        `Cannot transition booking from ${previousStatus} to ${nextStatus}`,
-      );
-    }
-
-    if (isCancellationStatus && !cancellationReason) {
-      throw new BadRequestException(
-        'Cancellation reason is required when cancelling or marking a booking as no-show',
-      );
-    }
-
-    if (!isCancellationStatus && cancellationReason) {
-      throw new BadRequestException(
-        'El motivo de cancelación solo puede enviarse para citas canceladas o no asistidas',
-      );
-    }
-
-    booking.status = nextStatus;
-
-    if (nextStatus === 'COMPLETED') {
-      booking.completed_at_utc = new Date();
-      booking.completed_by_user_id = currentUser.sub;
-      booking.cancelled_at_utc = null;
-      booking.cancelled_by_user_id = null;
-      booking.cancellation_reason = null;
-    } else if (isCancellationStatus) {
-      booking.cancelled_at_utc = new Date();
-      booking.cancelled_by_user_id = currentUser.sub;
-      booking.cancellation_reason = cancellationReason;
-      booking.completed_at_utc = null;
-      booking.completed_by_user_id = null;
-    } else {
-      booking.completed_at_utc = null;
-      booking.completed_by_user_id = null;
-      booking.cancelled_at_utc = null;
-      booking.cancelled_by_user_id = null;
-      booking.cancellation_reason = null;
-    }
-
-    const updated = await this.bookingsRepository.save(booking);
+    const updated = result.booking;
 
     await this.auditService.log({
       actor_user_id: currentUser.sub,
-      tenant_id: booking.tenant_id,
+      tenant_id: updated.tenant_id,
       action: 'BOOKING_STATUS_UPDATED',
       entity: 'booking',
-      entity_id: booking.id,
+      entity_id: updated.id,
       metadata: {
-        previous_status: previousStatus,
+        previous_status: result.previousStatus,
         status: updated.status,
         cancellation_reason: updated.cancellation_reason,
       },
     });
 
-    const hydratedBooking = await this.findOneByTenantId(updated.id, booking.tenant_id);
+    const hydratedBooking = await this.findOneByTenantId(
+      updated.id,
+      updated.tenant_id,
+    );
 
     if (nextStatus === 'COMPLETED') {
       void this.notificationsService.sendBookingLifecycleNotifications(
@@ -772,8 +877,22 @@ export class BookingsService {
     if (serviceIds.length > 1) {
       throw new BadRequestException('Solo se permite un servicio por cita');
     }
-    const selectedServices = await this.resolveActiveServices(tenantId, serviceIds);
-    const employee = await this.findTenantEmployee(dto.employee_id, tenantId, true);
+    const selectedServices = await this.resolveActiveServices(
+      tenantId,
+      serviceIds,
+    );
+    const selectedService = selectedServices[0];
+    if (!selectedService) {
+      throw new BadRequestException('Debes seleccionar al menos un servicio');
+    }
+    const partySize = this.normalizePartySize(dto.party_size);
+    this.assertPartySizeAllowed(selectedService, partySize);
+
+    const employee = await this.findTenantEmployee(
+      dto.employee_id,
+      tenantId,
+      true,
+    );
     this.assertEmployeeOffersAllServices(employee, serviceIds);
 
     const startAt = new Date(dto.start_at_utc);
@@ -784,25 +903,36 @@ export class BookingsService {
     const timezone = employee.schedule_timezone || 'UTC';
     this.assertValidTimezone(timezone);
     const totalDurationMinutes = this.getTotalDurationMinutes(selectedServices);
-    const totalPrice = this.getTotalPrice(selectedServices);
+    const bufferBeforeMinutes =
+      this.getTotalBufferBeforeMinutes(selectedServices);
+    const bufferAfterMinutes =
+      this.getTotalBufferAfterMinutes(selectedServices);
     const currency = selectedServices[0]?.currency ?? 'USD';
     const endAt = new Date(
       startAt.getTime() + totalDurationMinutes * 60 * 1000,
     );
+    let busyStartAt = new Date(
+      startAt.getTime() - bufferBeforeMinutes * 60 * 1000,
+    );
+    let busyEndAt = new Date(endAt.getTime() + bufferAfterMinutes * 60 * 1000);
 
     if (endAt.getTime() <= startAt.getTime()) {
       throw new BadRequestException('Duración de cita inválida');
     }
 
-    const bookingStatus =
-      options.status ??
-      (options.creationMode === 'MANUAL' && startAt.getTime() < Date.now()
-        ? 'COMPLETED'
-        : 'PENDING');
+    const defaultBookingStatus =
+      options.creationMode === 'MANUAL'
+        ? startAt.getTime() < Date.now()
+          ? 'COMPLETED'
+          : 'PENDING'
+        : selectedServices.some((service) => service.requires_confirmation)
+          ? 'PENDING'
+          : 'CONFIRMED';
+    let bookingStatus = options.status ?? defaultBookingStatus;
     const cancellationReason = options.cancellationReason?.trim() || null;
     this.assertValidCreationStatus(bookingStatus, cancellationReason);
 
-    const shouldRequireActiveEmployee =
+    let shouldRequireActiveEmployee =
       options.creationMode === 'SLOT' ||
       (this.isBlockingStatus(bookingStatus) && endAt.getTime() > Date.now());
 
@@ -817,17 +947,26 @@ export class BookingsService {
         serviceIds,
         date: localDate,
         timezone,
+        partySize,
       });
 
       const matchedSlot = availability.slots.find(
         (slot) => slot.start_at_utc.getTime() === startAt.getTime(),
       );
       if (!matchedSlot) {
-        throw new ConflictException('El horario seleccionado no está disponible');
+        throw new ConflictException(
+          'El horario seleccionado no está disponible',
+        );
       }
 
       persistedStartAt = matchedSlot.start_at_utc;
       persistedEndAt = matchedSlot.end_at_utc;
+      busyStartAt = new Date(
+        persistedStartAt.getTime() - bufferBeforeMinutes * 60 * 1000,
+      );
+      busyEndAt = new Date(
+        persistedEndAt.getTime() + bufferAfterMinutes * 60 * 1000,
+      );
     } else if (
       !options.allowOverlap &&
       this.shouldValidateManualAvailability(bookingStatus, persistedEndAt)
@@ -837,12 +976,12 @@ export class BookingsService {
         employeeId: employee.id,
         startAt: persistedStartAt,
         endAt: persistedEndAt,
+        busyStartAt,
+        busyEndAt,
         timezone,
       });
     }
 
-    const servicesById = new Map(selectedServices.map((service) => [service.id, service]));
-    const orderedServices = serviceIds.map((serviceId) => servicesById.get(serviceId)!);
     const normalizedCustomerPhone = normalizePhoneInput({
       countryIso2: dto.customer_phone_country_iso2,
       nationalNumber: dto.customer_phone_national_number,
@@ -850,115 +989,187 @@ export class BookingsService {
       fieldLabel: 'customer phone',
     });
 
-    const booking = await this.dataSource.transaction(async (manager) => {
-      const employeeLocked = await manager
-        .getRepository(Employee)
-        .createQueryBuilder('employee')
-        .setLock('pessimistic_write')
-        .where('employee.id = :employeeId', { employeeId: employee.id })
-        .andWhere('employee.tenant_id = :tenantId', { tenantId })
-        .getOne();
+    const transactionResult = await this.dataSource.transaction(
+      async (manager) => {
+        if (options.idempotencyKey) {
+          await manager.query(
+            'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+            [`${tenantId}:${options.idempotencyKey}`],
+          );
+          const existingBooking = await manager.getRepository(Booking).findOne({
+            where: {
+              tenant_id: tenantId,
+              idempotency_key: options.idempotencyKey,
+            },
+          });
+          if (existingBooking) {
+            return { booking: existingBooking, created: false };
+          }
+        }
 
-      if (!employeeLocked || (shouldRequireActiveEmployee && !employeeLocked.is_active)) {
-        throw new BadRequestException('El profesional está inactivo o no disponible');
-      }
+        const lockedService = await manager
+          .getRepository(Service)
+          .createQueryBuilder('service')
+          .setLock('pessimistic_read')
+          .where('service.id = :serviceId', { serviceId: selectedService.id })
+          .andWhere('service.tenant_id = :tenantId', { tenantId })
+          .andWhere('service.is_active = true')
+          .getOne();
+        if (!lockedService) {
+          throw new ConflictException('El servicio ya no está disponible.');
+        }
+        this.assertPartySizeAllowed(lockedService, partySize);
+        const lockedTotalPrice = calculateLineTotal(
+          lockedService.price,
+          partySize,
+          lockedService.pricing_model ?? 'FLAT',
+        );
+        if (options.status === undefined && options.creationMode !== 'MANUAL') {
+          bookingStatus = lockedService.requires_confirmation ? 'PENDING' : 'CONFIRMED';
+          shouldRequireActiveEmployee = true;
+        }
 
-      if (
-        this.isBlockingStatus(bookingStatus) &&
-        (!options.allowOverlap || options.creationMode === 'SLOT')
-      ) {
-        const overlapping = await manager.getRepository(Booking).findOne({
-          where: {
-            tenant_id: tenantId,
-            employee_id: employee.id,
-            status: In([...BOOKING_BLOCKING_STATUSES]),
-            start_at_utc: LessThan(persistedEndAt),
-            end_at_utc: MoreThan(persistedStartAt),
-          },
-        });
+        const employeeLocked = await manager
+          .getRepository(Employee)
+          .createQueryBuilder('employee')
+          .setLock('pessimistic_write')
+          .where('employee.id = :employeeId', { employeeId: employee.id })
+          .andWhere('employee.tenant_id = :tenantId', { tenantId })
+          .getOne();
 
-        if (overlapping) {
-          throw new ConflictException(
-            options.creationMode === 'SLOT'
-              ? 'Selected slot is no longer available'
-              : 'Selected time overlaps an active booking',
+        if (
+          !employeeLocked ||
+          (shouldRequireActiveEmployee && !employeeLocked.is_active)
+        ) {
+          throw new BadRequestException(
+            'El profesional está inactivo o no disponible',
           );
         }
-      }
 
-      if (
-        options.creationMode === 'MANUAL' &&
-        this.isBlockingStatus(bookingStatus) &&
-        !options.allowOverlap &&
-        persistedEndAt.getTime() > Date.now()
-      ) {
-        const overlappingTimeOff = await manager.getRepository(EmployeeTimeOff).findOne({
-          where: {
-            tenant_id: tenantId,
-            employee_id: employee.id,
-            is_active: true,
-            start_at_utc: LessThan(persistedEndAt),
-            end_at_utc: MoreThan(persistedStartAt),
-          },
+        if (this.isBlockingStatus(bookingStatus)) {
+          const overlappingBookings = await manager
+            .getRepository(Booking)
+            .find({
+              where: {
+                tenant_id: tenantId,
+                employee_id: employee.id,
+                status: In([...BOOKING_BLOCKING_STATUSES]),
+                busy_start_at_utc: LessThan(busyEndAt),
+                busy_end_at_utc: MoreThan(busyStartAt),
+              },
+              relations: {
+                items: true,
+              },
+            });
+
+          if (
+            !this.hasCapacityForRequestedSlot({
+              bookings: overlappingBookings,
+              serviceId: selectedService.id,
+              partySize,
+              maxCapacity: this.getServiceSlotCapacity(lockedService),
+              startAt: busyStartAt,
+              endAt: busyEndAt,
+              sessionStartAt: persistedStartAt,
+              sessionEndAt: persistedEndAt,
+              allowOverlap: options.allowOverlap ?? false,
+            })
+          ) {
+            throw new ConflictException(
+              options.creationMode === 'SLOT'
+                ? 'Selected slot is no longer available'
+                : 'Selected time overlaps an active booking',
+            );
+          }
+        }
+
+        if (
+          options.creationMode === 'MANUAL' &&
+          this.isBlockingStatus(bookingStatus) &&
+          !options.allowOverlap &&
+          persistedEndAt.getTime() > Date.now()
+        ) {
+          const overlappingTimeOff = await manager
+            .getRepository(EmployeeTimeOff)
+            .findOne({
+              where: {
+                tenant_id: tenantId,
+                employee_id: employee.id,
+                is_active: true,
+                start_at_utc: LessThan(persistedEndAt),
+                end_at_utc: MoreThan(persistedStartAt),
+              },
+            });
+
+          if (overlappingTimeOff) {
+            throw new ConflictException(
+              'Selected time overlaps an employee time-off block',
+            );
+          }
+        }
+
+        const lifecycleFields = this.buildInitialLifecycleFields(
+          bookingStatus,
+          persistedStartAt,
+          persistedEndAt,
+          options.actorUserId,
+          cancellationReason,
+        );
+
+        const created = manager.getRepository(Booking).create({
+          tenant_id: tenantId,
+          idempotency_key: options.idempotencyKey ?? null,
+          employee_id: employee.id,
+          start_at_utc: persistedStartAt,
+          end_at_utc: persistedEndAt,
+          busy_start_at_utc: busyStartAt,
+          busy_end_at_utc: busyEndAt,
+          status: bookingStatus,
+          completed_at_utc: lifecycleFields.completed_at_utc,
+          completed_by_user_id: lifecycleFields.completed_by_user_id,
+          cancelled_at_utc: lifecycleFields.cancelled_at_utc,
+          cancelled_by_user_id: lifecycleFields.cancelled_by_user_id,
+          cancellation_reason: lifecycleFields.cancellation_reason,
+          total_duration_minutes: totalDurationMinutes,
+          party_size: partySize,
+          total_price: lockedTotalPrice,
+          currency,
+          customer_name: dto.customer_name.trim(),
+          customer_email: dto.customer_email?.trim().toLowerCase() ?? null,
+          customer_phone: normalizedCustomerPhone.display,
+          customer_phone_country_iso2: normalizedCustomerPhone.countryIso2,
+          customer_phone_national_number:
+            normalizedCustomerPhone.nationalNumber,
+          customer_phone_e164: normalizedCustomerPhone.e164,
+          notes: dto.notes?.trim() ?? null,
+          source: options.source,
+          created_by_user_id: options.actorUserId,
+          items: [lockedService].map((service, index) =>
+            manager.getRepository(BookingItem).create({
+              service_id: service.id,
+              service_name_snapshot: service.name,
+              duration_minutes_snapshot: service.duration_minutes,
+              buffer_before_minutes_snapshot: service.buffer_before_minutes,
+              buffer_after_minutes_snapshot: service.buffer_after_minutes,
+              price_snapshot: normalizeMoney(service.price),
+              pricing_model_snapshot: service.pricing_model ?? 'FLAT',
+              unit_price_snapshot: normalizeMoney(service.price),
+              quantity_snapshot: partySize,
+              line_total_snapshot: lockedTotalPrice,
+              currency_snapshot: service.currency,
+              instructions_snapshot: service.instructions?.trim() || null,
+              sort_order: index,
+            }),
+          ),
         });
 
-        if (overlappingTimeOff) {
-          throw new ConflictException(
-            'Selected time overlaps an employee time-off block',
-          );
-        }
-      }
+        const saved = await manager.getRepository(Booking).save(created);
+        return { booking: saved, created: true };
+      },
+    );
+    const booking = transactionResult.booking;
 
-      const lifecycleFields = this.buildInitialLifecycleFields(
-        bookingStatus,
-        persistedStartAt,
-        persistedEndAt,
-        options.actorUserId,
-        cancellationReason,
-      );
-
-      const created = manager.getRepository(Booking).create({
-        tenant_id: tenantId,
-        employee_id: employee.id,
-        start_at_utc: persistedStartAt,
-        end_at_utc: persistedEndAt,
-        status: bookingStatus,
-        completed_at_utc: lifecycleFields.completed_at_utc,
-        completed_by_user_id: lifecycleFields.completed_by_user_id,
-        cancelled_at_utc: lifecycleFields.cancelled_at_utc,
-        cancelled_by_user_id: lifecycleFields.cancelled_by_user_id,
-        cancellation_reason: lifecycleFields.cancellation_reason,
-        total_duration_minutes: totalDurationMinutes,
-        total_price: totalPrice.toFixed(2),
-        currency,
-        customer_name: dto.customer_name.trim(),
-        customer_email: dto.customer_email?.trim().toLowerCase() ?? null,
-        customer_phone: normalizedCustomerPhone.display,
-        customer_phone_country_iso2: normalizedCustomerPhone.countryIso2,
-        customer_phone_national_number: normalizedCustomerPhone.nationalNumber,
-        customer_phone_e164: normalizedCustomerPhone.e164,
-        notes: dto.notes?.trim() ?? null,
-        source: options.source,
-        created_by_user_id: options.actorUserId,
-        items: orderedServices.map((service, index) =>
-          manager.getRepository(BookingItem).create({
-            service_id: service.id,
-            service_name_snapshot: service.name,
-            duration_minutes_snapshot: service.duration_minutes,
-            buffer_before_minutes_snapshot: service.buffer_before_minutes,
-            buffer_after_minutes_snapshot: service.buffer_after_minutes,
-            price_snapshot: Number(service.price).toFixed(2),
-            currency_snapshot: service.currency,
-            instructions_snapshot: service.instructions?.trim() || null,
-            sort_order: index,
-          }),
-        ),
-      });
-
-      return manager.getRepository(Booking).save(created);
-    });
-
-    if (options.actorUserId) {
+    if (transactionResult.created && options.actorUserId) {
       await this.auditService.log({
         actor_user_id: options.actorUserId,
         tenant_id: tenantId,
@@ -977,13 +1188,14 @@ export class BookingsService {
           source: booking.source,
           creation_mode: options.creationMode,
           allow_overlap: options.allowOverlap ?? false,
+          party_size: booking.party_size,
         },
       });
     }
 
     const hydratedBooking = await this.findOneByTenantId(booking.id, tenantId);
 
-    if (options.sendCreateNotifications) {
+    if (transactionResult.created && options.sendCreateNotifications) {
       const sendNotificationsPromise =
         this.notificationsService.sendBookingLifecycleNotifications(
           hydratedBooking,
@@ -1076,6 +1288,8 @@ export class BookingsService {
     employeeId: string;
     startAt: Date;
     endAt: Date;
+    busyStartAt: Date;
+    busyEndAt: Date;
     timezone: string;
   }): Promise<void> {
     const localDate = formatDateInTimeZone(input.startAt, input.timezone);
@@ -1091,7 +1305,7 @@ export class BookingsService {
     }
 
     const dayOfWeek = getDayOfWeekFromDateString(localDate);
-    const [rules, breaks, timeOff, activeBookings] = await Promise.all([
+    const [rules, breaks, timeOff] = await Promise.all([
       this.scheduleRulesRepository.find({
         where: {
           tenant_id: input.tenantId,
@@ -1115,17 +1329,8 @@ export class BookingsService {
           tenant_id: input.tenantId,
           employee_id: input.employeeId,
           is_active: true,
-          start_at_utc: LessThan(input.endAt),
-          end_at_utc: MoreThan(input.startAt),
-        },
-      }),
-      this.bookingsRepository.find({
-        where: {
-          tenant_id: input.tenantId,
-          employee_id: input.employeeId,
-          status: In([...BOOKING_BLOCKING_STATUSES]),
-          start_at_utc: LessThan(input.endAt),
-          end_at_utc: MoreThan(input.startAt),
+          start_at_utc: LessThan(input.busyEndAt),
+          end_at_utc: MoreThan(input.busyStartAt),
         },
       }),
     ]);
@@ -1168,16 +1373,12 @@ export class BookingsService {
         start: item.start_at_utc,
         end: item.end_at_utc,
       })),
-      ...activeBookings.map((item) => ({
-        start: item.start_at_utc,
-        end: item.end_at_utc,
-      })),
     ]);
 
     const fits = freeIntervals.some(
       (interval) =>
-        interval.start.getTime() <= input.startAt.getTime() &&
-        interval.end.getTime() >= input.endAt.getTime(),
+        interval.start.getTime() <= input.busyStartAt.getTime() &&
+        interval.end.getTime() >= input.busyEndAt.getTime(),
     );
 
     if (!fits) {
@@ -1193,6 +1394,7 @@ export class BookingsService {
     serviceIds: string[];
     date: string;
     timezone?: string;
+    partySize?: number;
   }): Promise<{
     employee_id: string;
     date: string;
@@ -1200,14 +1402,36 @@ export class BookingsService {
     slot_interval_minutes: number;
     required_duration_minutes: number;
     service_ids: string[];
-    slots: Array<{ start_at_utc: Date; end_at_utc: Date }>;
+    slots: Array<{
+      start_at_utc: Date;
+      end_at_utc: Date;
+      slot_capacity: number;
+      occupied_capacity: number;
+      available_capacity: number;
+      requested_party_size: number;
+    }>;
   }> {
     const serviceIds = this.uniqueIds(input.serviceIds);
-    const selectedServices = await this.resolveActiveServices(input.tenantId, serviceIds);
-    const employee = await this.findTenantEmployee(input.employeeId, input.tenantId, true);
+    const selectedServices = await this.resolveActiveServices(
+      input.tenantId,
+      serviceIds,
+    );
+    const selectedService = selectedServices[0];
+    if (!selectedService) {
+      throw new BadRequestException('Debes seleccionar al menos un servicio');
+    }
+    const partySize = this.normalizePartySize(input.partySize);
+    this.assertPartySizeAllowed(selectedService, partySize);
+
+    const employee = await this.findTenantEmployee(
+      input.employeeId,
+      input.tenantId,
+      true,
+    );
     this.assertEmployeeOffersAllServices(employee, serviceIds);
 
-    const timezone = input.timezone?.trim() || employee.schedule_timezone || 'UTC';
+    const timezone =
+      input.timezone?.trim() || employee.schedule_timezone || 'UTC';
     this.assertValidTimezone(timezone);
 
     const dayOfWeek = getDayOfWeekFromDateString(input.date);
@@ -1233,6 +1457,12 @@ export class BookingsService {
     ]);
 
     const totalDurationMinutes = this.getTotalDurationMinutes(selectedServices);
+    const bufferBeforeMinutes =
+      this.getTotalBufferBeforeMinutes(selectedServices);
+    const bufferAfterMinutes =
+      this.getTotalBufferAfterMinutes(selectedServices);
+    const occupiedDurationMinutes =
+      bufferBeforeMinutes + totalDurationMinutes + bufferAfterMinutes;
     // Slots are generated from requested service duration, not from per-employee configuration.
     const slotIntervalMinutes = Math.max(totalDurationMinutes, 5);
 
@@ -1291,30 +1521,48 @@ export class BookingsService {
           tenant_id: input.tenantId,
           employee_id: employee.id,
           status: In([...BOOKING_BLOCKING_STATUSES]),
-          start_at_utc: LessThan(dayRange.end),
-          end_at_utc: MoreThan(dayRange.start),
+          busy_start_at_utc: LessThan(dayRange.end),
+          busy_end_at_utc: MoreThan(dayRange.start),
+        },
+        relations: {
+          items: true,
         },
       }),
     ]);
 
+    const selectedServiceId = selectedService.id;
+    const sameServiceBookings = activeBookings.filter((booking) =>
+      this.bookingIncludesService(booking, selectedServiceId),
+    );
+    const incompatibleBookings = activeBookings.filter(
+      (booking) => !this.bookingIncludesService(booking, selectedServiceId),
+    );
     const busyIntervals = [
       ...breakIntervals,
       ...timeOff.map((item) => ({
         start: item.start_at_utc,
         end: item.end_at_utc,
       })),
-      ...activeBookings.map((item) => ({
-        start: item.start_at_utc,
-        end: item.end_at_utc,
+      ...incompatibleBookings.map((item) => ({
+        start: item.busy_start_at_utc ?? item.start_at_utc,
+        end: item.busy_end_at_utc ?? item.end_at_utc,
       })),
     ];
 
     const freeIntervals = subtractIntervals(workIntervals, busyIntervals);
-    const rawSlots = generateSlots(
+    const rawOccupiedSlots = generateSlots(
       freeIntervals,
       slotIntervalMinutes,
-      totalDurationMinutes,
+      occupiedDurationMinutes,
     );
+    const rawSlots = rawOccupiedSlots.map((slot) => ({
+      start_at_utc: new Date(
+        slot.start_at_utc.getTime() + bufferBeforeMinutes * 60 * 1000,
+      ),
+      end_at_utc: new Date(
+        slot.end_at_utc.getTime() - bufferAfterMinutes * 60 * 1000,
+      ),
+    }));
 
     const minNoticeMinutes = selectedServices.reduce(
       (maxNotice, service) => Math.max(maxNotice, service.min_notice_minutes),
@@ -1326,16 +1574,52 @@ export class BookingsService {
     );
 
     const now = new Date();
-    const earliestAllowed = new Date(now.getTime() + minNoticeMinutes * 60 * 1000);
+    const earliestAllowed = new Date(
+      now.getTime() + minNoticeMinutes * 60 * 1000,
+    );
     const latestAllowed = new Date(
       now.getTime() + maxBookingWindowDays * 24 * 60 * 60 * 1000,
     );
 
-    const slots = rawSlots.filter(
-      (slot) =>
-        slot.start_at_utc.getTime() >= earliestAllowed.getTime() &&
-        slot.start_at_utc.getTime() <= latestAllowed.getTime(),
-    );
+    const slotCapacity = this.getServiceSlotCapacity(selectedService);
+    const slots = rawSlots
+      .filter(
+        (slot) =>
+          slot.start_at_utc.getTime() >= earliestAllowed.getTime() &&
+          slot.start_at_utc.getTime() <= latestAllowed.getTime(),
+      )
+      .map((slot) => {
+        const occupiedCapacity = sameServiceBookings
+          .filter(
+            (booking) =>
+              booking.start_at_utc.getTime() === slot.start_at_utc.getTime() &&
+              booking.end_at_utc.getTime() === slot.end_at_utc.getTime(),
+          )
+          .reduce((sum, booking) => sum + (booking.party_size ?? 1), 0);
+        return {
+          ...slot,
+          slot_capacity: slotCapacity,
+          occupied_capacity: occupiedCapacity,
+          available_capacity: Math.max(slotCapacity - occupiedCapacity, 0),
+          requested_party_size: partySize,
+        };
+      })
+      .filter((slot) =>
+        this.hasCapacityForRequestedSlot({
+          bookings: sameServiceBookings,
+          serviceId: selectedServiceId,
+          partySize,
+          maxCapacity: slotCapacity,
+          startAt: new Date(
+            slot.start_at_utc.getTime() - bufferBeforeMinutes * 60 * 1000,
+          ),
+          endAt: new Date(
+            slot.end_at_utc.getTime() + bufferAfterMinutes * 60 * 1000,
+          ),
+          sessionStartAt: slot.start_at_utc,
+          sessionEndAt: slot.end_at_utc,
+        }),
+      );
 
     return {
       employee_id: employee.id,
@@ -1358,7 +1642,14 @@ export class BookingsService {
     slot_interval_minutes: number;
     required_duration_minutes: number;
     service_ids: string[];
-    slots: Array<{ start_at_utc: string; end_at_utc: string }>;
+    slots: Array<{
+      start_at_utc: string;
+      end_at_utc: string;
+      slot_capacity: number;
+      occupied_capacity: number;
+      available_capacity: number;
+      requested_party_size: number;
+    }>;
   }> {
     const availability = await this.computeAvailability({
       tenantId,
@@ -1366,6 +1657,7 @@ export class BookingsService {
       serviceIds: query.service_ids,
       date: query.date,
       timezone: query.timezone,
+      partySize: query.party_size,
     });
 
     return {
@@ -1378,6 +1670,10 @@ export class BookingsService {
       slots: availability.slots.map((slot) => ({
         start_at_utc: slot.start_at_utc.toISOString(),
         end_at_utc: slot.end_at_utc.toISOString(),
+        slot_capacity: slot.slot_capacity,
+        occupied_capacity: slot.occupied_capacity,
+        available_capacity: slot.available_capacity,
+        requested_party_size: slot.requested_party_size,
       })),
     };
   }
@@ -1421,6 +1717,97 @@ export class BookingsService {
     });
   }
 
+  private normalizePartySize(value?: number): number {
+    const partySize = value ?? 1;
+    if (!Number.isInteger(partySize) || partySize < 1 || partySize > 100) {
+      throw new BadRequestException(
+        'El número de personas debe estar entre 1 y 100',
+      );
+    }
+    return partySize;
+  }
+
+  private getServiceMinCapacity(service: Service): number {
+    return service.min_party_size ?? service.min_capacity ?? 1;
+  }
+
+  private getServiceMaxCapacity(service: Service): number {
+    return service.max_party_size ?? service.max_capacity ?? 1;
+  }
+
+  private getServiceSlotCapacity(service: Service): number {
+    return service.slot_capacity ?? service.capacity ?? this.getServiceMaxCapacity(service);
+  }
+
+  private assertPartySizeAllowed(service: Service, partySize: number): void {
+    const minCapacity = this.getServiceMinCapacity(service);
+    const maxCapacity = this.getServiceMaxCapacity(service);
+
+    if (partySize < minCapacity || partySize > maxCapacity) {
+      throw new BadRequestException(
+        `Este servicio permite reservas entre ${minCapacity} y ${maxCapacity} persona(s).`,
+      );
+    }
+  }
+
+  private bookingIncludesService(booking: Booking, serviceId: string): boolean {
+    return (
+      booking.items?.some((item) => item.service_id === serviceId) ?? false
+    );
+  }
+
+  private intervalsOverlap(left: Interval, right: Interval): boolean {
+    return (
+      left.start.getTime() < right.end.getTime() &&
+      left.end.getTime() > right.start.getTime()
+    );
+  }
+
+  private hasCapacityForRequestedSlot(input: {
+    bookings: Booking[];
+    serviceId: string;
+    partySize: number;
+    maxCapacity: number;
+    startAt: Date;
+    endAt: Date;
+    sessionStartAt: Date;
+    sessionEndAt: Date;
+    allowOverlap?: boolean;
+  }): boolean {
+    let usedCapacity = 0;
+
+    for (const booking of input.bookings) {
+      if (
+        !this.intervalsOverlap(
+          {
+            start: booking.busy_start_at_utc ?? booking.start_at_utc,
+            end: booking.busy_end_at_utc ?? booking.end_at_utc,
+          },
+          { start: input.startAt, end: input.endAt },
+        )
+      ) {
+        continue;
+      }
+
+      const sameService = this.bookingIncludesService(booking, input.serviceId);
+      const sameSession =
+        booking.start_at_utc.getTime() === input.sessionStartAt.getTime() &&
+        booking.end_at_utc.getTime() === input.sessionEndAt.getTime();
+
+      if (!sameService || !sameSession) {
+        if (input.allowOverlap) continue;
+        return false;
+      }
+
+      usedCapacity += booking.party_size ?? 1;
+      if (usedCapacity + input.partySize > input.maxCapacity) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   private requireTenantId(currentUser: CurrentJwtUser): string {
     if (!currentUser.tenant_id) {
       throw new BadRequestException('El contexto del negocio es obligatorio.');
@@ -1428,7 +1815,10 @@ export class BookingsService {
     return currentUser.tenant_id;
   }
 
-  private async findOneByTenantId(id: string, tenantId: string): Promise<Booking> {
+  private async findOneByTenantId(
+    id: string,
+    tenantId: string,
+  ): Promise<Booking> {
     const booking = await this.bookingsRepository.findOne({
       where: {
         id,
@@ -1516,8 +1906,12 @@ export class BookingsService {
     employee: Employee & { services?: Service[] },
     serviceIds: string[],
   ): void {
-    const offeredIds = new Set((employee.services ?? []).map((service) => service.id));
-    const missing = serviceIds.filter((serviceId) => !offeredIds.has(serviceId));
+    const offeredIds = new Set(
+      (employee.services ?? []).map((service) => service.id),
+    );
+    const missing = serviceIds.filter(
+      (serviceId) => !offeredIds.has(serviceId),
+    );
 
     if (missing.length > 0) {
       throw new BadRequestException(
@@ -1528,7 +1922,9 @@ export class BookingsService {
 
   private assertValidTimezone(timezone: string): void {
     try {
-      new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date());
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(
+        new Date(),
+      );
     } catch {
       throw new BadRequestException('Zona horaria del horario inválida');
     }
@@ -1581,25 +1977,35 @@ export class BookingsService {
 
   private getTotalDurationMinutes(services: Service[]): number {
     return services.reduce(
-      (total, service) =>
-        total +
-        service.duration_minutes +
-        service.buffer_before_minutes +
-        service.buffer_after_minutes,
+      (total, service) => total + service.duration_minutes,
       0,
     );
   }
 
-  private getTotalPrice(services: Service[]): number {
-    return services.reduce((sum, service) => sum + Number(service.price), 0);
+  private getTotalBufferBeforeMinutes(services: Service[]): number {
+    return services.reduce(
+      (total, service) => total + service.buffer_before_minutes,
+      0,
+    );
+  }
+
+  private getTotalBufferAfterMinutes(services: Service[]): number {
+    return services.reduce(
+      (total, service) => total + service.buffer_after_minutes,
+      0,
+    );
   }
 
   private normalizeLocalTime(value: string): string {
     return value.trim().slice(0, 5);
   }
 
-  private isCancellationStatus(status: string): status is 'CANCELLED' | 'NO_SHOW' {
-    return (BOOKING_CANCELLATION_STATUSES as readonly string[]).includes(status);
+  private isCancellationStatus(
+    status: string,
+  ): status is 'CANCELLED' | 'NO_SHOW' {
+    return (BOOKING_CANCELLATION_STATUSES as readonly string[]).includes(
+      status,
+    );
   }
 
   private isBlockingStatus(status: string): status is BookingStatus {
@@ -1660,13 +2066,16 @@ export class BookingsService {
     return result;
   }
 
-  private toPublicBookingConfirmation(booking: Booking): PublicBookingConfirmation {
+  private toPublicBookingConfirmation(
+    booking: Booking,
+  ): PublicBookingConfirmation {
     return {
       id: booking.id,
       status: booking.status,
       start_at_utc: booking.start_at_utc.toISOString(),
       end_at_utc: booking.end_at_utc.toISOString(),
       total_duration_minutes: booking.total_duration_minutes,
+      party_size: booking.party_size,
       total_price: Number(booking.total_price).toFixed(2),
       currency: booking.currency,
       customer_name: booking.customer_name,
@@ -1679,6 +2088,10 @@ export class BookingsService {
         service_name_snapshot: item.service_name_snapshot,
         duration_minutes_snapshot: item.duration_minutes_snapshot,
         price_snapshot: Number(item.price_snapshot).toFixed(2),
+        pricing_model_snapshot: item.pricing_model_snapshot,
+        unit_price_snapshot: normalizeMoney(item.unit_price_snapshot),
+        quantity_snapshot: item.quantity_snapshot,
+        line_total_snapshot: normalizeMoney(item.line_total_snapshot),
         currency_snapshot: item.currency_snapshot,
         instructions_snapshot: item.instructions_snapshot,
         sort_order: item.sort_order,

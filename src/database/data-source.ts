@@ -40,7 +40,8 @@ function resolvePoolMax(): number {
   }
 
   const isProduction = (process.env.NODE_ENV ?? 'development') === 'production';
-  const isServerlessRuntime = envBool('VERCEL', false) || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+  const isServerlessRuntime =
+    envBool('VERCEL', false) || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 
   return isProduction && isServerlessRuntime ? 1 : 10;
 }

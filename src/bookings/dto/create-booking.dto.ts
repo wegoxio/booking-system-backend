@@ -6,11 +6,14 @@ import {
   IsDateString,
   IsEmail,
   IsIn,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Length,
   Matches,
+  Max,
+  Min,
 } from 'class-validator';
 import { BOOKING_SOURCES } from '../bookings.constants';
 
@@ -27,6 +30,12 @@ export class CreateBookingDto {
 
   @IsDateString()
   start_at_utc: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  party_size?: number = 1;
 
   @IsString()
   @Length(1, 120)

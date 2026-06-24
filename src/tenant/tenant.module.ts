@@ -7,11 +7,8 @@ import { AuditModule } from '../audit/audit.module';
 import { TenantSetting } from '../tenant-settings/entities/tenant-setting.entity';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Tenant, TenantSetting]),
-    AuditModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Tenant, TenantSetting]), AuditModule],
   controllers: [TenantController],
   providers: [TenantService],
 })
-export class TenantModule { }
+export class TenantModule {}

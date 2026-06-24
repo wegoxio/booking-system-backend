@@ -16,4 +16,3 @@ export class AddAuditMessageColumn1773700000000 implements MigrationInterface {
     await queryRunner.query(`ALTER TABLE "audit_logs" DROP COLUMN "message"`);
   }
 }
-

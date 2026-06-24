@@ -1,10 +1,4 @@
-import {
-  IsEmail,
-  IsNotEmpty,
-  IsString,
-  IsUUID,
-  Length,
-} from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, IsUUID, Length } from 'class-validator';
 
 export class CreateTenantAdminDto {
   @IsString()

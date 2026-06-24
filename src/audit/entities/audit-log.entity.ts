@@ -11,6 +11,9 @@ import { User } from '../../users/entities/user.entity';
 import { Tenant } from '../../tenant/entities/tenant.entity';
 
 @Entity('audit_logs')
+@Index('IDX_audit_logs_tenant_created_at', ['tenant_id', 'created_at'])
+@Index('IDX_audit_logs_actor_created_at', ['actor_user_id', 'created_at'])
+@Index('IDX_audit_logs_entity_entity_id', ['entity', 'entity_id'])
 export class AuditLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;

@@ -117,7 +117,13 @@ export function normalizeThemeSettings(theme: ThemeInput): TenantThemeSettings {
   );
   const textSecondary = getColor(
     theme,
-    ['textSecondary', 'textMuted', 'textTertiary', 'iconButtonText', 'textPrimary'],
+    [
+      'textSecondary',
+      'textMuted',
+      'textTertiary',
+      'iconButtonText',
+      'textPrimary',
+    ],
     DEFAULT_THEME_SETTINGS.textSecondary,
   );
 

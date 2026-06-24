@@ -103,12 +103,16 @@ describe('RemindersScheduler', () => {
 
   it('delegates the daily dispatch tick to the reminders service', async () => {
     await scheduler.handleDispatchTick();
-    expect(remindersService.dispatchTomorrowRemindersIfDue).toHaveBeenCalledTimes(1);
+    expect(
+      remindersService.dispatchTomorrowRemindersIfDue,
+    ).toHaveBeenCalledTimes(1);
   });
 
   it('delegates the backfill tick to the reminders service', async () => {
     await scheduler.handleBackfillTick();
-    expect(remindersService.backfillMissedTomorrowReminders).toHaveBeenCalledTimes(1);
+    expect(
+      remindersService.backfillMissedTomorrowReminders,
+    ).toHaveBeenCalledTimes(1);
   });
 
   it('delegates the processing tick to the reminders service', async () => {
@@ -118,6 +122,8 @@ describe('RemindersScheduler', () => {
 
   it('delegates the recovery tick to the reminders service', async () => {
     await scheduler.handleRecoveryTick();
-    expect(remindersService.recoverStuckProcessingReminders).toHaveBeenCalledTimes(1);
+    expect(
+      remindersService.recoverStuckProcessingReminders,
+    ).toHaveBeenCalledTimes(1);
   });
 });

@@ -5,11 +5,15 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Tenant } from './entities/tenant.entity';
-import { Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { AuditService } from '../audit/audit.service';
 import { TenantSetting } from '../tenant-settings/entities/tenant-setting.entity';
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from '../common/dto/pagination-query.dto';
 
 type CurrentJwtUser = {
   sub: string;
@@ -20,13 +24,17 @@ type CurrentJwtUser = {
 @Injectable()
 export class TenantService {
   constructor(
-    @InjectRepository(Tenant) private readonly tenantRepository: Repository<Tenant>,
+    @InjectRepository(Tenant)
+    private readonly tenantRepository: Repository<Tenant>,
     @InjectRepository(TenantSetting)
     private readonly tenantSettingsRepository: Repository<TenantSetting>,
     private readonly auditService: AuditService,
   ) {}
 
-  async create(dto: CreateTenantDto, currentUser: CurrentJwtUser): Promise<Tenant> {
+  async create(
+    dto: CreateTenantDto,
+    currentUser: CurrentJwtUser,
+  ): Promise<Tenant> {
     const normalizedSlug = dto.slug.trim().toLowerCase();
     const existingTenant = await this.findBySlug(normalizedSlug);
     if (existingTenant) {
@@ -66,19 +74,38 @@ export class TenantService {
     return tenant;
   }
 
-  async findAll(): Promise<Array<Tenant & { tenant_logo_url: string | null }>> {
-    const tenants = await this.tenantRepository.find({
+  async findAll(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResponse<Tenant & { tenant_logo_url: string | null }>> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 25;
+    const search = query.q?.trim();
+    const [tenants, total] = await this.tenantRepository.findAndCount({
+      where: search
+        ? [{ name: ILike(`%${search}%`) }, { slug: ILike(`%${search}%`) }]
+        : undefined,
       order: { created_at: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
     const logosByTenant = await this.getTenantLogosByTenantId(
       tenants.map((tenant) => tenant.id),
     );
 
-    return tenants.map((tenant) => ({
+    const data = tenants.map((tenant) => ({
       ...tenant,
       tenant_logo_url: logosByTenant.get(tenant.id) ?? null,
     }));
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        total_pages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
   }
 
   async update(
@@ -109,7 +136,8 @@ export class TenantService {
     }
 
     const updated = await this.tenantRepository.save(tenant);
-    const statusChanged = dto.is_active !== undefined && previousIsActive !== updated.is_active;
+    const statusChanged =
+      dto.is_active !== undefined && previousIsActive !== updated.is_active;
     const action = statusChanged
       ? updated.is_active
         ? 'TENANT_ENABLED'
@@ -150,13 +178,15 @@ export class TenantService {
         logo_url: string | null;
       }>();
 
-    return new Map(rows.map((row) => {
-      const normalizedLogo = row.logo_url?.trim() || null;
-      const logoUrl =
-        normalizedLogo && normalizedLogo !== '/bukky-logo.svg'
-          ? normalizedLogo
-          : null;
-      return [row.tenant_id, logoUrl];
-    }));
+    return new Map(
+      rows.map((row) => {
+        const normalizedLogo = row.logo_url?.trim() || null;
+        const logoUrl =
+          normalizedLogo && normalizedLogo !== '/bukky-logo.svg'
+            ? normalizedLogo
+            : null;
+        return [row.tenant_id, logoUrl];
+      }),
+    );
   }
 }

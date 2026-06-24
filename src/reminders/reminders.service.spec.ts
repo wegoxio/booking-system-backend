@@ -14,9 +14,9 @@ type MockRepo<T> = {
   createQueryBuilder: jest.Mock;
 };
 
-function createConfigMock(
-  overrides: Partial<Record<string, unknown>> = {},
-): { get: jest.Mock } {
+function createConfigMock(overrides: Partial<Record<string, unknown>> = {}): {
+  get: jest.Mock;
+} {
   const values: Record<string, unknown> = {
     REMINDERS_ENABLED: true,
     REMINDERS_TIMEZONE: 'America/Caracas',
@@ -136,7 +136,9 @@ function createBooking(overrides: Partial<Booking> = {}): Booking {
   };
 }
 
-function createReminder(overrides: Partial<BookingReminder> = {}): BookingReminder {
+function createReminder(
+  overrides: Partial<BookingReminder> = {},
+): BookingReminder {
   const booking = createBooking();
   return {
     id: 'reminder-1',
@@ -315,14 +317,18 @@ describe('RemindersService', () => {
       .spyOn(service as any, 'tryClaimReminder')
       .mockResolvedValue(true as any);
     remindersRepository.update.mockResolvedValue({ affected: 1 });
-    notificationsService.sendBookingReminderNotification.mockResolvedValue(undefined);
+    notificationsService.sendBookingReminderNotification.mockResolvedValue(
+      undefined,
+    );
 
     const now = new Date('2026-03-18T21:00:00.000Z');
     const result = await service.processDueReminders(now);
 
     expect(result.claimed_count).toBe(1);
     expect(result.sent_count).toBe(1);
-    expect(notificationsService.sendBookingReminderNotification).toHaveBeenCalledWith(
+    expect(
+      notificationsService.sendBookingReminderNotification,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         reminderId: reminder.id,
         audience: 'CUSTOMER',
@@ -360,7 +366,9 @@ describe('RemindersService', () => {
 
     expect(result.claimed_count).toBe(1);
     expect(result.skipped_count).toBe(1);
-    expect(notificationsService.sendBookingReminderNotification).not.toHaveBeenCalled();
+    expect(
+      notificationsService.sendBookingReminderNotification,
+    ).not.toHaveBeenCalled();
     expect(remindersRepository.update).toHaveBeenLastCalledWith(reminder.id, {
       status: 'SKIPPED',
       processing_started_at: null,

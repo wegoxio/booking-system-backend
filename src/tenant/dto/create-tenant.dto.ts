@@ -10,8 +10,7 @@ export class CreateTenantDto {
   @IsNotEmpty()
   @Length(3, 60)
   @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
-    message:
-      'Slug inválido. Usa minúsculas, números y guiones (sin espacios).',
+    message: 'Slug inválido. Usa minúsculas, números y guiones (sin espacios).',
   })
   slug: string;
 }

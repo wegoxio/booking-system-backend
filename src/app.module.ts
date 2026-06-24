@@ -34,7 +34,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
-      validate: validateEnv
+      validate: validateEnv,
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
@@ -62,4 +62,4 @@ import { ScheduleModule } from '@nestjs/schedule';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

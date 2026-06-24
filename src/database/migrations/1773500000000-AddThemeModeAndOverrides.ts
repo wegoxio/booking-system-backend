@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddThemeModeAndOverrides1773500000000
-  implements MigrationInterface
-{
+export class AddThemeModeAndOverrides1773500000000 implements MigrationInterface {
   name = 'AddThemeModeAndOverrides1773500000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

@@ -26,4 +26,3 @@ import { DashboardService } from './dashboard.service';
   providers: [DashboardService],
 })
 export class DashboardModule {}
-

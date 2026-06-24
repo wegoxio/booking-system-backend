@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -18,12 +19,43 @@ import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
-import type { CurrentJwtUser } from '../auth/types'; 
+import type { CurrentJwtUser } from '../auth/types';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { TenantSettingsService } from './tenant-settings.service';
-import { TenantSettingsAssetType } from './tenant-settings.constants';
+import {
+  ALLOWED_IMAGE_MIME_TYPES,
+  TenantSettingsAssetType,
+} from './tenant-settings.constants';
 
 const MAX_ASSET_SIZE_BYTES = 2 * 1024 * 1024;
+const imageAssetUploadOptions = {
+  limits: {
+    fileSize: MAX_ASSET_SIZE_BYTES,
+    files: 1,
+    fields: 4,
+    parts: 5,
+    headerPairs: 32,
+  },
+  fileFilter: (
+    _req: unknown,
+    file: { mimetype?: string },
+    callback: (error: Error | null, acceptFile: boolean) => void,
+  ) => {
+    const mimetype = file.mimetype?.trim().toLowerCase();
+    if (!mimetype || !ALLOWED_IMAGE_MIME_TYPES.has(mimetype)) {
+      callback(
+        new BadRequestException(
+          'Unsupported image file. Allowed formats: PNG, JPG, WEBP, ICO.',
+        ),
+        false,
+      );
+      return;
+    }
+
+    callback(null, true);
+  },
+};
+
 type UploadedAssetFile = {
   buffer: Buffer;
   mimetype: string;
@@ -53,13 +85,15 @@ export class TenantSettingsController {
 
   @Post('platform/me/assets/:assetType')
   @Roles('SUPER_ADMIN')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', imageAssetUploadOptions))
   uploadPlatformAsset(
     @Param('assetType', new ParseEnumPipe(TenantSettingsAssetType))
     assetType: TenantSettingsAssetType,
     @UploadedFile(
       new ParseFilePipe({
-        validators: [new MaxFileSizeValidator({ maxSize: MAX_ASSET_SIZE_BYTES })],
+        validators: [
+          new MaxFileSizeValidator({ maxSize: MAX_ASSET_SIZE_BYTES }),
+        ],
         fileIsRequired: true,
       }),
     )
@@ -90,20 +124,26 @@ export class TenantSettingsController {
 
   @Post('me/assets/:assetType')
   @Roles('TENANT_ADMIN')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', imageAssetUploadOptions))
   uploadMineAsset(
     @Param('assetType', new ParseEnumPipe(TenantSettingsAssetType))
     assetType: TenantSettingsAssetType,
     @UploadedFile(
       new ParseFilePipe({
-        validators: [new MaxFileSizeValidator({ maxSize: MAX_ASSET_SIZE_BYTES })],
+        validators: [
+          new MaxFileSizeValidator({ maxSize: MAX_ASSET_SIZE_BYTES }),
+        ],
         fileIsRequired: true,
       }),
     )
     file: UploadedAssetFile,
     @CurrentUser() currentUser: CurrentJwtUser,
   ) {
-    return this.tenantSettingsService.uploadMineAsset(assetType, file, currentUser);
+    return this.tenantSettingsService.uploadMineAsset(
+      assetType,
+      file,
+      currentUser,
+    );
   }
 
   @Get(':tenantId')
@@ -119,19 +159,25 @@ export class TenantSettingsController {
     @Body() dto: UpdateTenantSettingsDto,
     @CurrentUser() currentUser: CurrentJwtUser,
   ) {
-    return this.tenantSettingsService.updateByTenantId(tenantId, dto, currentUser);
+    return this.tenantSettingsService.updateByTenantId(
+      tenantId,
+      dto,
+      currentUser,
+    );
   }
 
   @Post(':tenantId/assets/:assetType')
   @Roles('SUPER_ADMIN')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', imageAssetUploadOptions))
   uploadAssetByTenantId(
     @Param('tenantId', new ParseUUIDPipe()) tenantId: string,
     @Param('assetType', new ParseEnumPipe(TenantSettingsAssetType))
     assetType: TenantSettingsAssetType,
     @UploadedFile(
       new ParseFilePipe({
-        validators: [new MaxFileSizeValidator({ maxSize: MAX_ASSET_SIZE_BYTES })],
+        validators: [
+          new MaxFileSizeValidator({ maxSize: MAX_ASSET_SIZE_BYTES }),
+        ],
         fileIsRequired: true,
       }),
     )

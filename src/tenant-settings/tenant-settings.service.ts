@@ -8,7 +8,7 @@ import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditService } from '../audit/audit.service';
-import type { CurrentJwtUser } from '../auth/types'; 
+import type { CurrentJwtUser } from '../auth/types';
 import { Tenant } from '../tenant/entities/tenant.entity';
 import { TenantSetting } from './entities/tenant-setting.entity';
 import { PlatformSetting } from './entities/platform-setting.entity';
@@ -125,7 +125,11 @@ export class TenantSettingsService {
     file: UploadedAssetFile,
     currentUser: CurrentJwtUser,
   ): Promise<TenantSettingsResponse> {
-    const validatedFile = this.validateUploadedAsset(file, assetType, 'platform');
+    const validatedFile = this.validateUploadedAsset(
+      file,
+      assetType,
+      'platform',
+    );
 
     const settings = await this.getOrCreatePlatformSettings();
     const extension = validatedFile.extension;
@@ -267,7 +271,10 @@ export class TenantSettingsService {
 
     if (
       !existingSettings &&
-      this.areSnapshotsEqual(nextSnapshot, this.extractSnapshot(platformSerialized))
+      this.areSnapshotsEqual(
+        nextSnapshot,
+        this.extractSnapshot(platformSerialized),
+      )
     ) {
       return {
         ...platformSerialized,
@@ -443,7 +450,9 @@ export class TenantSettingsService {
     tenantId: string,
     platformSettings: PlatformSetting,
   ): TenantSetting {
-    const platformSnapshot = this.extractSnapshot(serializeSettings(platformSettings));
+    const platformSnapshot = this.extractSnapshot(
+      serializeSettings(platformSettings),
+    );
     const settings = this.tenantSettingsRepository.create({
       tenant_id: tenantId,
       logo_key: null,
@@ -483,7 +492,8 @@ export class TenantSettingsService {
       branding: patch.branding
         ? {
             appName: patch.branding.appName ?? base.branding.appName,
-            windowTitle: patch.branding.windowTitle ?? base.branding.windowTitle,
+            windowTitle:
+              patch.branding.windowTitle ?? base.branding.windowTitle,
             logoUrl: patch.branding.logoUrl ?? base.branding.logoUrl,
             faviconUrl: patch.branding.faviconUrl ?? base.branding.faviconUrl,
           }
@@ -528,8 +538,12 @@ export class TenantSettingsService {
     left: Record<string, string>,
     right: Record<string, string>,
   ): boolean {
-    const leftEntries = Object.entries(left).sort(([a], [b]) => a.localeCompare(b));
-    const rightEntries = Object.entries(right).sort(([a], [b]) => a.localeCompare(b));
+    const leftEntries = Object.entries(left).sort(([a], [b]) =>
+      a.localeCompare(b),
+    );
+    const rightEntries = Object.entries(right).sort(([a], [b]) =>
+      a.localeCompare(b),
+    );
 
     if (leftEntries.length !== rightEntries.length) {
       return false;
@@ -550,7 +564,9 @@ export class TenantSettingsService {
       return false;
     }
 
-    const tenantSnapshot = this.extractSnapshot(serializeSettings(tenantSettings));
+    const tenantSnapshot = this.extractSnapshot(
+      serializeSettings(tenantSettings),
+    );
     const platformSnapshot = this.extractSnapshot(platformSettings);
 
     return this.areSnapshotsEqual(tenantSnapshot, platformSnapshot);
@@ -592,7 +608,8 @@ export class TenantSettingsService {
       throw new BadRequestException('Debes enviar un archivo de imagen.');
     }
 
-    const fileSizeBytes = typeof file.size === 'number' ? file.size : file.buffer.length;
+    const fileSizeBytes =
+      typeof file.size === 'number' ? file.size : file.buffer.length;
     const maxSizeBytes = this.resolveMaxAssetSizeBytes(scope, assetType);
 
     if (fileSizeBytes > maxSizeBytes) {
@@ -611,7 +628,9 @@ export class TenantSettingsService {
     const declaredMime = file.mimetype?.trim().toLowerCase();
     if (declaredMime) {
       if (!ALLOWED_IMAGE_MIME_TYPES.has(declaredMime)) {
-        throw new BadRequestException('El tipo MIME de la imagen no es compatible.');
+        throw new BadRequestException(
+          'El tipo MIME de la imagen no es compatible.',
+        );
       }
 
       if (!this.isMimeCompatibleWithFormat(declaredMime, detectedFormat)) {
@@ -632,7 +651,9 @@ export class TenantSettingsService {
     assetType: TenantSettingsAssetType,
   ): number {
     const maxSizeByAssetType =
-      scope === 'platform' ? PLATFORM_ASSET_MAX_SIZE_BYTES : TENANT_ASSET_MAX_SIZE_BYTES;
+      scope === 'platform'
+        ? PLATFORM_ASSET_MAX_SIZE_BYTES
+        : TENANT_ASSET_MAX_SIZE_BYTES;
 
     return maxSizeByAssetType[assetType];
   }
@@ -645,7 +666,12 @@ export class TenantSettingsService {
   }
 
   private detectAssetFormat(buffer: Buffer): DetectedAssetFormat | null {
-    if (this.startsWithBytes(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
+    if (
+      this.startsWithBytes(
+        buffer,
+        [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+      )
+    ) {
       return 'png';
     }
 
@@ -688,7 +714,9 @@ export class TenantSettingsService {
       case 'webp':
         return mimeType === 'image/webp';
       case 'ico':
-        return mimeType === 'image/x-icon' || mimeType === 'image/vnd.microsoft.icon';
+        return (
+          mimeType === 'image/x-icon' || mimeType === 'image/vnd.microsoft.icon'
+        );
       default:
         return false;
     }
@@ -705,7 +733,9 @@ export class TenantSettingsService {
       case 'ico':
         return 'ico';
       default:
-        throw new BadRequestException('El formato de la imagen no es compatible.');
+        throw new BadRequestException(
+          'El formato de la imagen no es compatible.',
+        );
     }
   }
 
@@ -720,7 +750,9 @@ export class TenantSettingsService {
       case 'ico':
         return 'image/x-icon';
       default:
-        throw new BadRequestException('El formato de la imagen no es compatible.');
+        throw new BadRequestException(
+          'El formato de la imagen no es compatible.',
+        );
     }
   }
 
@@ -800,7 +832,8 @@ export class TenantSettingsService {
     originalName: string | undefined,
     fallbackName: string,
   ): string {
-    const rawBaseName = originalName?.trim().replace(/\.[^.]+$/, '') || fallbackName;
+    const rawBaseName =
+      originalName?.trim().replace(/\.[^.]+$/, '') || fallbackName;
     const normalized = rawBaseName
       .normalize('NFKD')
       .replace(/[\u0300-\u036f]/g, '')

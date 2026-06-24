@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -7,6 +8,7 @@ import {
   ParseFilePipe,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -19,6 +21,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { EmployeesService } from './employees.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 type CurrentJwtUser = {
   sub: string;
@@ -27,6 +30,11 @@ type CurrentJwtUser = {
 };
 
 const MAX_EMPLOYEE_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
+const ALLOWED_EMPLOYEE_AVATAR_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+]);
 
 type UploadedAssetFile = {
   buffer: Buffer;
@@ -42,13 +50,19 @@ export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
 
   @Post()
-  create(@Body() dto: CreateEmployeeDto, @CurrentUser() currentUser: CurrentJwtUser) {
+  create(
+    @Body() dto: CreateEmployeeDto,
+    @CurrentUser() currentUser: CurrentJwtUser,
+  ) {
     return this.employeesService.create(dto, currentUser);
   }
 
   @Get()
-  findAll(@CurrentUser() currentUser: CurrentJwtUser) {
-    return this.employeesService.findAll(currentUser);
+  findAll(
+    @Query() query: PaginationQueryDto,
+    @CurrentUser() currentUser: CurrentJwtUser,
+  ) {
+    return this.employeesService.findAll(currentUser, query);
   }
 
   @Get(':id')
@@ -66,7 +80,31 @@ export class EmployeesController {
   }
 
   @Post(':id/avatar')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: MAX_EMPLOYEE_AVATAR_SIZE_BYTES,
+        files: 1,
+        fields: 4,
+        parts: 5,
+        headerPairs: 32,
+      },
+      fileFilter: (_req, file, callback) => {
+        const mimetype = file.mimetype?.trim().toLowerCase();
+        if (!ALLOWED_EMPLOYEE_AVATAR_MIME_TYPES.has(mimetype)) {
+          callback(
+            new BadRequestException(
+              'Unsupported avatar format. Allowed formats: PNG, JPG, WEBP.',
+            ),
+            false,
+          );
+          return;
+        }
+
+        callback(null, true);
+      },
+    }),
+  )
   uploadAvatar(
     @Param('id') id: string,
     @UploadedFile(

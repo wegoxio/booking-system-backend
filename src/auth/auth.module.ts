@@ -18,7 +18,10 @@ import { AccountAccessService } from './account-access.service';
 
 type JwtExpiresIn = NonNullable<JwtSignOptions['expiresIn']>;
 
-function toJwtExpiresIn(value: string | undefined, fallback: JwtExpiresIn): JwtExpiresIn {
+function toJwtExpiresIn(
+  value: string | undefined,
+  fallback: JwtExpiresIn,
+): JwtExpiresIn {
   if (!value?.trim()) return fallback;
   const normalized = value.trim();
   if (/^\d+$/.test(normalized)) {
@@ -27,7 +30,6 @@ function toJwtExpiresIn(value: string | undefined, fallback: JwtExpiresIn): JwtE
 
   return normalized as JwtExpiresIn;
 }
-
 
 @Module({
   imports: [
@@ -41,7 +43,8 @@ function toJwtExpiresIn(value: string | undefined, fallback: JwtExpiresIn): JwtE
       useFactory: (config: ConfigService): JwtModuleOptions => {
         const secret = config.get<string>('JWT_SECRET');
         const accessExpiresIn =
-          config.get<string>('JWT_ACCESS_EXPIRES_IN') ?? config.get<string>('JWT_EXPIRES_IN');
+          config.get<string>('JWT_ACCESS_EXPIRES_IN') ??
+          config.get<string>('JWT_EXPIRES_IN');
 
         return {
           secret,
@@ -53,7 +56,12 @@ function toJwtExpiresIn(value: string | undefined, fallback: JwtExpiresIn): JwtE
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthCookieService, JwtStrategy, AccountAccessService],
+  providers: [
+    AuthService,
+    AuthCookieService,
+    JwtStrategy,
+    AccountAccessService,
+  ],
   exports: [AccountAccessService],
 })
 export class AuthModule {}

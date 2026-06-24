@@ -1,10 +1,5 @@
 import { Transform } from 'class-transformer';
-import {
-  ArrayMinSize,
-  ArrayUnique,
-  IsArray,
-  IsUUID,
-} from 'class-validator';
+import { ArrayMinSize, ArrayUnique, IsArray, IsUUID } from 'class-validator';
 
 function normalizeUuidArray(value: unknown): string[] {
   if (Array.isArray(value)) {
