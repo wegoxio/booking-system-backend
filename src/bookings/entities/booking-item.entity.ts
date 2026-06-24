@@ -2,6 +2,7 @@ import { BaseEntity } from '../../common/entities/base.entity';
 import { Service } from '../../services/entity/service.entity';
 import { Column, Entity, Index, JoinColumn, ManyToOne, Unique } from 'typeorm';
 import { Booking } from './booking.entity';
+import type { PricingModel } from '../../common/money/money.util';
 
 @Entity('booking_items')
 @Unique('UQ_booking_items_booking_sort_order', ['booking_id', 'sort_order'])
@@ -37,6 +38,18 @@ export class BookingItem extends BaseEntity {
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   price_snapshot: string;
+
+  @Column({ type: 'varchar', length: 16, default: 'FLAT' })
+  pricing_model_snapshot: PricingModel;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2 })
+  unit_price_snapshot: string;
+
+  @Column({ type: 'int', default: 1 })
+  quantity_snapshot: number;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2 })
+  line_total_snapshot: string;
 
   @Column({ type: 'varchar', length: 3, default: 'USD' })
   currency_snapshot: string;

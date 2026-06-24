@@ -7,6 +7,10 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { AuditService } from '../audit/audit.service';
 import { normalizePhoneInput } from '../common/phone/phone.util';
+import {
+  calculateLineTotal,
+  normalizeMoney,
+} from '../common/money/money.util';
 import { Employee } from '../employees/entities/employee.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Service } from '../services/entity/service.entity';
@@ -178,6 +182,10 @@ export class BookingsService {
           capacity: service.capacity,
           min_capacity: service.min_capacity,
           max_capacity: service.max_capacity,
+          min_party_size: service.min_party_size,
+          max_party_size: service.max_party_size,
+          slot_capacity: service.slot_capacity,
+          pricing_model: service.pricing_model,
           requires_confirmation: service.requires_confirmation,
           price: Number(service.price).toFixed(2),
           currency: service.currency,
@@ -899,7 +907,6 @@ export class BookingsService {
       this.getTotalBufferBeforeMinutes(selectedServices);
     const bufferAfterMinutes =
       this.getTotalBufferAfterMinutes(selectedServices);
-    const totalPrice = this.getTotalPrice(selectedServices);
     const currency = selectedServices[0]?.currency ?? 'USD';
     const endAt = new Date(
       startAt.getTime() + totalDurationMinutes * 60 * 1000,
@@ -921,11 +928,11 @@ export class BookingsService {
         : selectedServices.some((service) => service.requires_confirmation)
           ? 'PENDING'
           : 'CONFIRMED';
-    const bookingStatus = options.status ?? defaultBookingStatus;
+    let bookingStatus = options.status ?? defaultBookingStatus;
     const cancellationReason = options.cancellationReason?.trim() || null;
     this.assertValidCreationStatus(bookingStatus, cancellationReason);
 
-    const shouldRequireActiveEmployee =
+    let shouldRequireActiveEmployee =
       options.creationMode === 'SLOT' ||
       (this.isBlockingStatus(bookingStatus) && endAt.getTime() > Date.now());
 
@@ -975,12 +982,6 @@ export class BookingsService {
       });
     }
 
-    const servicesById = new Map(
-      selectedServices.map((service) => [service.id, service]),
-    );
-    const orderedServices = serviceIds.map(
-      (serviceId) => servicesById.get(serviceId)!,
-    );
     const normalizedCustomerPhone = normalizePhoneInput({
       countryIso2: dto.customer_phone_country_iso2,
       nationalNumber: dto.customer_phone_national_number,
@@ -1006,6 +1007,28 @@ export class BookingsService {
           }
         }
 
+        const lockedService = await manager
+          .getRepository(Service)
+          .createQueryBuilder('service')
+          .setLock('pessimistic_read')
+          .where('service.id = :serviceId', { serviceId: selectedService.id })
+          .andWhere('service.tenant_id = :tenantId', { tenantId })
+          .andWhere('service.is_active = true')
+          .getOne();
+        if (!lockedService) {
+          throw new ConflictException('El servicio ya no está disponible.');
+        }
+        this.assertPartySizeAllowed(lockedService, partySize);
+        const lockedTotalPrice = calculateLineTotal(
+          lockedService.price,
+          partySize,
+          lockedService.pricing_model ?? 'FLAT',
+        );
+        if (options.status === undefined && options.creationMode !== 'MANUAL') {
+          bookingStatus = lockedService.requires_confirmation ? 'PENDING' : 'CONFIRMED';
+          shouldRequireActiveEmployee = true;
+        }
+
         const employeeLocked = await manager
           .getRepository(Employee)
           .createQueryBuilder('employee')
@@ -1023,10 +1046,7 @@ export class BookingsService {
           );
         }
 
-        if (
-          this.isBlockingStatus(bookingStatus) &&
-          (!options.allowOverlap || options.creationMode === 'SLOT')
-        ) {
+        if (this.isBlockingStatus(bookingStatus)) {
           const overlappingBookings = await manager
             .getRepository(Booking)
             .find({
@@ -1047,9 +1067,12 @@ export class BookingsService {
               bookings: overlappingBookings,
               serviceId: selectedService.id,
               partySize,
-              maxCapacity: this.getServiceMaxCapacity(selectedService),
+              maxCapacity: this.getServiceSlotCapacity(lockedService),
               startAt: busyStartAt,
               endAt: busyEndAt,
+              sessionStartAt: persistedStartAt,
+              sessionEndAt: persistedEndAt,
+              allowOverlap: options.allowOverlap ?? false,
             })
           ) {
             throw new ConflictException(
@@ -1109,7 +1132,7 @@ export class BookingsService {
           cancellation_reason: lifecycleFields.cancellation_reason,
           total_duration_minutes: totalDurationMinutes,
           party_size: partySize,
-          total_price: totalPrice.toFixed(2),
+          total_price: lockedTotalPrice,
           currency,
           customer_name: dto.customer_name.trim(),
           customer_email: dto.customer_email?.trim().toLowerCase() ?? null,
@@ -1121,14 +1144,18 @@ export class BookingsService {
           notes: dto.notes?.trim() ?? null,
           source: options.source,
           created_by_user_id: options.actorUserId,
-          items: orderedServices.map((service, index) =>
+          items: [lockedService].map((service, index) =>
             manager.getRepository(BookingItem).create({
               service_id: service.id,
               service_name_snapshot: service.name,
               duration_minutes_snapshot: service.duration_minutes,
               buffer_before_minutes_snapshot: service.buffer_before_minutes,
               buffer_after_minutes_snapshot: service.buffer_after_minutes,
-              price_snapshot: Number(service.price).toFixed(2),
+              price_snapshot: normalizeMoney(service.price),
+              pricing_model_snapshot: service.pricing_model ?? 'FLAT',
+              unit_price_snapshot: normalizeMoney(service.price),
+              quantity_snapshot: partySize,
+              line_total_snapshot: lockedTotalPrice,
               currency_snapshot: service.currency,
               instructions_snapshot: service.instructions?.trim() || null,
               sort_order: index,
@@ -1375,7 +1402,14 @@ export class BookingsService {
     slot_interval_minutes: number;
     required_duration_minutes: number;
     service_ids: string[];
-    slots: Array<{ start_at_utc: Date; end_at_utc: Date }>;
+    slots: Array<{
+      start_at_utc: Date;
+      end_at_utc: Date;
+      slot_capacity: number;
+      occupied_capacity: number;
+      available_capacity: number;
+      requested_party_size: number;
+    }>;
   }> {
     const serviceIds = this.uniqueIds(input.serviceIds);
     const selectedServices = await this.resolveActiveServices(
@@ -1547,23 +1581,45 @@ export class BookingsService {
       now.getTime() + maxBookingWindowDays * 24 * 60 * 60 * 1000,
     );
 
-    const slots = rawSlots.filter(
-      (slot) =>
-        slot.start_at_utc.getTime() >= earliestAllowed.getTime() &&
-        slot.start_at_utc.getTime() <= latestAllowed.getTime() &&
+    const slotCapacity = this.getServiceSlotCapacity(selectedService);
+    const slots = rawSlots
+      .filter(
+        (slot) =>
+          slot.start_at_utc.getTime() >= earliestAllowed.getTime() &&
+          slot.start_at_utc.getTime() <= latestAllowed.getTime(),
+      )
+      .map((slot) => {
+        const occupiedCapacity = sameServiceBookings
+          .filter(
+            (booking) =>
+              booking.start_at_utc.getTime() === slot.start_at_utc.getTime() &&
+              booking.end_at_utc.getTime() === slot.end_at_utc.getTime(),
+          )
+          .reduce((sum, booking) => sum + (booking.party_size ?? 1), 0);
+        return {
+          ...slot,
+          slot_capacity: slotCapacity,
+          occupied_capacity: occupiedCapacity,
+          available_capacity: Math.max(slotCapacity - occupiedCapacity, 0),
+          requested_party_size: partySize,
+        };
+      })
+      .filter((slot) =>
         this.hasCapacityForRequestedSlot({
           bookings: sameServiceBookings,
           serviceId: selectedServiceId,
           partySize,
-          maxCapacity: this.getServiceMaxCapacity(selectedService),
+          maxCapacity: slotCapacity,
           startAt: new Date(
             slot.start_at_utc.getTime() - bufferBeforeMinutes * 60 * 1000,
           ),
           endAt: new Date(
             slot.end_at_utc.getTime() + bufferAfterMinutes * 60 * 1000,
           ),
+          sessionStartAt: slot.start_at_utc,
+          sessionEndAt: slot.end_at_utc,
         }),
-    );
+      );
 
     return {
       employee_id: employee.id,
@@ -1586,7 +1642,14 @@ export class BookingsService {
     slot_interval_minutes: number;
     required_duration_minutes: number;
     service_ids: string[];
-    slots: Array<{ start_at_utc: string; end_at_utc: string }>;
+    slots: Array<{
+      start_at_utc: string;
+      end_at_utc: string;
+      slot_capacity: number;
+      occupied_capacity: number;
+      available_capacity: number;
+      requested_party_size: number;
+    }>;
   }> {
     const availability = await this.computeAvailability({
       tenantId,
@@ -1607,6 +1670,10 @@ export class BookingsService {
       slots: availability.slots.map((slot) => ({
         start_at_utc: slot.start_at_utc.toISOString(),
         end_at_utc: slot.end_at_utc.toISOString(),
+        slot_capacity: slot.slot_capacity,
+        occupied_capacity: slot.occupied_capacity,
+        available_capacity: slot.available_capacity,
+        requested_party_size: slot.requested_party_size,
       })),
     };
   }
@@ -1661,11 +1728,15 @@ export class BookingsService {
   }
 
   private getServiceMinCapacity(service: Service): number {
-    return service.min_capacity ?? 1;
+    return service.min_party_size ?? service.min_capacity ?? 1;
   }
 
   private getServiceMaxCapacity(service: Service): number {
-    return service.max_capacity ?? service.capacity ?? 1;
+    return service.max_party_size ?? service.max_capacity ?? 1;
+  }
+
+  private getServiceSlotCapacity(service: Service): number {
+    return service.slot_capacity ?? service.capacity ?? this.getServiceMaxCapacity(service);
   }
 
   private assertPartySizeAllowed(service: Service, partySize: number): void {
@@ -1699,6 +1770,9 @@ export class BookingsService {
     maxCapacity: number;
     startAt: Date;
     endAt: Date;
+    sessionStartAt: Date;
+    sessionEndAt: Date;
+    allowOverlap?: boolean;
   }): boolean {
     let usedCapacity = 0;
 
@@ -1715,7 +1789,13 @@ export class BookingsService {
         continue;
       }
 
-      if (!this.bookingIncludesService(booking, input.serviceId)) {
+      const sameService = this.bookingIncludesService(booking, input.serviceId);
+      const sameSession =
+        booking.start_at_utc.getTime() === input.sessionStartAt.getTime() &&
+        booking.end_at_utc.getTime() === input.sessionEndAt.getTime();
+
+      if (!sameService || !sameSession) {
+        if (input.allowOverlap) continue;
         return false;
       }
 
@@ -1916,10 +1996,6 @@ export class BookingsService {
     );
   }
 
-  private getTotalPrice(services: Service[]): number {
-    return services.reduce((sum, service) => sum + Number(service.price), 0);
-  }
-
   private normalizeLocalTime(value: string): string {
     return value.trim().slice(0, 5);
   }
@@ -2012,6 +2088,10 @@ export class BookingsService {
         service_name_snapshot: item.service_name_snapshot,
         duration_minutes_snapshot: item.duration_minutes_snapshot,
         price_snapshot: Number(item.price_snapshot).toFixed(2),
+        pricing_model_snapshot: item.pricing_model_snapshot,
+        unit_price_snapshot: normalizeMoney(item.unit_price_snapshot),
+        quantity_snapshot: item.quantity_snapshot,
+        line_total_snapshot: normalizeMoney(item.line_total_snapshot),
         currency_snapshot: item.currency_snapshot,
         instructions_snapshot: item.instructions_snapshot,
         sort_order: item.sort_order,

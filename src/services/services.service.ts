@@ -4,8 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, In, Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, ILike, In, Repository } from 'typeorm';
 
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
@@ -17,6 +17,10 @@ import {
   PaginatedResponse,
   PaginationQueryDto,
 } from '../common/dto/pagination-query.dto';
+import {
+  normalizeCurrency,
+  normalizeMoney,
+} from '../common/money/money.util';
 
 type CurrentJwtUser = {
   sub: string;
@@ -24,9 +28,10 @@ type CurrentJwtUser = {
   tenant_id: string | null;
 };
 
-type CapacityRange = {
-  min_capacity: number;
-  max_capacity: number;
+type CapacityConfig = {
+  minPartySize: number;
+  maxPartySize: number;
+  slotCapacity: number;
 };
 
 @Injectable()
@@ -36,6 +41,8 @@ export class ServicesService {
     private readonly servicesRepository: Repository<Service>,
     @InjectRepository(Employee)
     private readonly employeesRepository: Repository<Employee>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     private readonly auditService: AuditService,
   ) {}
 
@@ -64,7 +71,7 @@ export class ServicesService {
       dto.employee_ids,
       currentUser.tenant_id,
     );
-    const capacityRange = this.resolveCapacityRange(dto);
+    const capacity = this.resolveCapacityConfig(dto);
 
     const service = this.servicesRepository.create({
       tenant_id: currentUser.tenant_id,
@@ -74,11 +81,15 @@ export class ServicesService {
       duration_minutes: dto.duration_minutes,
       buffer_before_minutes: dto.buffer_before_minutes ?? 0,
       buffer_after_minutes: dto.buffer_after_minutes ?? 0,
-      capacity: capacityRange.max_capacity,
-      min_capacity: capacityRange.min_capacity,
-      max_capacity: capacityRange.max_capacity,
-      price: dto.price.toFixed(2),
-      currency: (dto.currency ?? 'USD').trim().toUpperCase(),
+      capacity: capacity.slotCapacity,
+      min_capacity: capacity.minPartySize,
+      max_capacity: capacity.maxPartySize,
+      min_party_size: capacity.minPartySize,
+      max_party_size: capacity.maxPartySize,
+      slot_capacity: capacity.slotCapacity,
+      pricing_model: dto.pricing_model ?? 'FLAT',
+      price: normalizeMoney(dto.price),
+      currency: normalizeCurrency(dto.currency ?? 'USD'),
       is_active: dto.is_active ?? true,
       sort_order: dto.sort_order ?? 0,
       requires_confirmation: dto.requires_confirmation ?? false,
@@ -163,109 +174,87 @@ export class ServicesService {
     dto: UpdateServiceDto,
     currentUser: CurrentJwtUser,
   ): Promise<Service> {
-    const service = await this.findOne(id, currentUser);
+    if (!currentUser.tenant_id) {
+      throw new BadRequestException('El contexto del negocio es obligatorio.');
+    }
 
-    if (dto.name !== undefined) {
-      const normalizedName = dto.name.trim();
+    await this.dataSource.transaction(async (manager) => {
+      const service = await manager
+        .getRepository(Service)
+        .createQueryBuilder('service')
+        .setLock('pessimistic_write')
+        .where('service.id = :id', { id })
+        .andWhere('service.tenant_id = :tenantId', {
+          tenantId: currentUser.tenant_id!,
+        })
+        .getOne();
+      if (!service) throw new NotFoundException('No se encontró el servicio.');
 
-      const duplicate = await this.servicesRepository.findOne({
-        where: {
-          tenant_id: currentUser.tenant_id!,
-          name: normalizedName,
-        },
-      });
+      if (dto.name !== undefined) {
+        const normalizedName = dto.name.trim();
+        const duplicate = await manager.getRepository(Service).findOne({
+          where: { tenant_id: currentUser.tenant_id!, name: normalizedName },
+        });
+        if (duplicate && duplicate.id !== service.id) {
+          throw new ConflictException('Ya existe un servicio con ese nombre.');
+        }
+        service.name = normalizedName;
+      }
+      if (dto.description !== undefined) service.description = dto.description?.trim() || null;
+      if (dto.instructions !== undefined) service.instructions = dto.instructions?.trim() || null;
+      if (dto.duration_minutes !== undefined) service.duration_minutes = dto.duration_minutes;
+      if (dto.buffer_before_minutes !== undefined) service.buffer_before_minutes = dto.buffer_before_minutes;
+      if (dto.buffer_after_minutes !== undefined) service.buffer_after_minutes = dto.buffer_after_minutes;
 
-      if (duplicate && duplicate.id !== service.id) {
-        throw new ConflictException('Ya existe un servicio con ese nombre.');
+      if (
+        dto.capacity !== undefined ||
+        dto.min_capacity !== undefined ||
+        dto.max_capacity !== undefined ||
+        dto.min_party_size !== undefined ||
+        dto.max_party_size !== undefined ||
+        dto.slot_capacity !== undefined
+      ) {
+        const capacity = this.resolveCapacityConfig(dto, service);
+        await this.assertFutureCapacityCompatible(manager, service, capacity);
+        service.capacity = capacity.slotCapacity;
+        service.min_capacity = capacity.minPartySize;
+        service.max_capacity = capacity.maxPartySize;
+        service.min_party_size = capacity.minPartySize;
+        service.max_party_size = capacity.maxPartySize;
+        service.slot_capacity = capacity.slotCapacity;
       }
 
-      service.name = normalizedName;
-    }
+      if (dto.price !== undefined) service.price = normalizeMoney(dto.price);
+      if (dto.currency !== undefined) service.currency = normalizeCurrency(dto.currency);
+      if (dto.pricing_model !== undefined) service.pricing_model = dto.pricing_model;
+      if (dto.is_active !== undefined) service.is_active = dto.is_active;
+      if (dto.sort_order !== undefined) service.sort_order = dto.sort_order;
+      if (dto.requires_confirmation !== undefined) service.requires_confirmation = dto.requires_confirmation;
+      if (dto.min_notice_minutes !== undefined) service.min_notice_minutes = dto.min_notice_minutes;
+      if (dto.booking_window_days !== undefined) service.booking_window_days = dto.booking_window_days;
+      if (dto.employee_ids !== undefined) {
+        service.employees = await this.resolveTenantEmployees(
+          dto.employee_ids,
+          currentUser.tenant_id!,
+          manager.getRepository(Employee),
+        );
+      }
+      return manager.getRepository(Service).save(service);
+    });
 
-    if (dto.description !== undefined) {
-      service.description = dto.description?.trim() || null;
-    }
-
-    if (dto.instructions !== undefined) {
-      service.instructions = dto.instructions?.trim() || null;
-    }
-
-    if (dto.duration_minutes !== undefined) {
-      service.duration_minutes = dto.duration_minutes;
-    }
-
-    if (dto.buffer_before_minutes !== undefined) {
-      service.buffer_before_minutes = dto.buffer_before_minutes;
-    }
-
-    if (dto.buffer_after_minutes !== undefined) {
-      service.buffer_after_minutes = dto.buffer_after_minutes;
-    }
-
-    if (dto.capacity !== undefined) {
-      service.capacity = dto.capacity;
-    }
-
-    if (
-      dto.capacity !== undefined ||
-      dto.min_capacity !== undefined ||
-      dto.max_capacity !== undefined
-    ) {
-      const capacityRange = this.resolveCapacityRange(dto, service);
-      service.capacity = capacityRange.max_capacity;
-      service.min_capacity = capacityRange.min_capacity;
-      service.max_capacity = capacityRange.max_capacity;
-    }
-
-    if (dto.price !== undefined) {
-      service.price = dto.price.toFixed(2);
-    }
-
-    if (dto.currency !== undefined) {
-      service.currency = dto.currency.trim().toUpperCase();
-    }
-
-    if (dto.is_active !== undefined) {
-      service.is_active = dto.is_active;
-    }
-
-    if (dto.sort_order !== undefined) {
-      service.sort_order = dto.sort_order;
-    }
-
-    if (dto.requires_confirmation !== undefined) {
-      service.requires_confirmation = dto.requires_confirmation;
-    }
-
-    if (dto.min_notice_minutes !== undefined) {
-      service.min_notice_minutes = dto.min_notice_minutes;
-    }
-
-    if (dto.booking_window_days !== undefined) {
-      service.booking_window_days = dto.booking_window_days;
-    }
-
-    if (dto.employee_ids !== undefined) {
-      service.employees = await this.resolveTenantEmployees(
-        dto.employee_ids,
-        currentUser.tenant_id!,
-      );
-    }
-
-    const updated = await this.servicesRepository.save(service);
-
+    const hydrated = await this.findOne(id, currentUser);
     await this.auditService.log({
       actor_user_id: currentUser.sub,
       tenant_id: currentUser.tenant_id!,
       action: 'SERVICE_UPDATED',
       entity: 'service',
-      entity_id: updated.id,
+      entity_id: hydrated.id,
       metadata: {
         updated_fields: Object.keys(dto),
       },
     });
 
-    return updated;
+    return hydrated;
   }
 
   async toggleStatus(
@@ -297,6 +286,7 @@ export class ServicesService {
   private async resolveTenantEmployees(
     employeeIds: string[],
     tenantId: string,
+    repository: Repository<Employee> = this.employeesRepository,
   ): Promise<Employee[]> {
     const uniqueIds = Array.from(new Set(employeeIds));
 
@@ -304,7 +294,7 @@ export class ServicesService {
       throw new BadRequestException('Debes asignar al menos un profesional.');
     }
 
-    const employees = await this.employeesRepository.find({
+    const employees = await repository.find({
       where: {
         tenant_id: tenantId,
         id: In(uniqueIds),
@@ -321,27 +311,71 @@ export class ServicesService {
     return employees;
   }
 
-  private resolveCapacityRange(
-    dto: Pick<CreateServiceDto, 'capacity' | 'min_capacity' | 'max_capacity'>,
+  private resolveCapacityConfig(
+    dto: Pick<
+      CreateServiceDto,
+      | 'capacity'
+      | 'min_capacity'
+      | 'max_capacity'
+      | 'min_party_size'
+      | 'max_party_size'
+      | 'slot_capacity'
+    >,
     existing?: Service,
-  ): CapacityRange {
-    const minCapacity = dto.min_capacity ?? existing?.min_capacity ?? 1;
-    const maxCapacity =
-      dto.max_capacity ??
-      dto.capacity ??
-      existing?.max_capacity ??
-      existing?.capacity ??
-      minCapacity;
+  ): CapacityConfig {
+    const minPartySize =
+      dto.min_party_size ?? dto.min_capacity ?? existing?.min_party_size ?? existing?.min_capacity ?? 1;
+    const maxPartySize =
+      dto.max_party_size ?? dto.max_capacity ?? existing?.max_party_size ?? existing?.max_capacity ?? minPartySize;
+    const slotCandidate =
+      dto.slot_capacity ?? dto.capacity ?? existing?.slot_capacity ?? existing?.capacity ?? maxPartySize;
+    const slotCapacity =
+      dto.slot_capacity !== undefined
+        ? slotCandidate
+        : Math.max(slotCandidate, maxPartySize);
 
-    if (maxCapacity < minCapacity) {
+    if (maxPartySize < minPartySize || slotCapacity < maxPartySize) {
       throw new BadRequestException(
         'La capacidad máxima debe ser mayor o igual a la capacidad mínima.',
       );
     }
 
     return {
-      min_capacity: minCapacity,
-      max_capacity: maxCapacity,
+      minPartySize,
+      maxPartySize,
+      slotCapacity,
     };
+  }
+
+  private async assertFutureCapacityCompatible(
+    manager: EntityManager,
+    service: Service,
+    capacity: CapacityConfig,
+  ): Promise<void> {
+    const rows = await manager.query<
+      Array<{ occupied_capacity: string; largest_party: string }>
+    >(
+      `SELECT COALESCE(MAX(session.occupied_capacity), 0)::text AS occupied_capacity,
+              COALESCE(MAX(session.largest_party), 0)::text AS largest_party
+       FROM (
+         SELECT SUM(booking.party_size) AS occupied_capacity,
+                MAX(booking.party_size) AS largest_party
+         FROM bookings booking
+         INNER JOIN booking_items item ON item.booking_id = booking.id
+         WHERE booking.tenant_id = $1
+           AND item.service_id = $2
+           AND booking.status IN ('PENDING', 'CONFIRMED', 'IN_PROGRESS')
+           AND booking.start_at_utc >= NOW()
+         GROUP BY booking.employee_id, booking.start_at_utc, booking.end_at_utc
+       ) session`,
+      [service.tenant_id, service.id],
+    );
+    const occupied = Number(rows[0]?.occupied_capacity ?? 0);
+    const largestParty = Number(rows[0]?.largest_party ?? 0);
+    if (occupied > capacity.slotCapacity || largestParty > capacity.maxPartySize) {
+      throw new ConflictException(
+        `Existen reservas futuras: slot_capacity debe ser al menos ${occupied} y max_party_size al menos ${largestParty}.`,
+      );
+    }
   }
 }

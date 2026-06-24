@@ -14,6 +14,10 @@ export type PublicBookingService = {
   capacity: number;
   min_capacity: number;
   max_capacity: number;
+  min_party_size: number;
+  max_party_size: number;
+  slot_capacity: number;
+  pricing_model: 'FLAT' | 'PER_PERSON';
   requires_confirmation: boolean;
   price: string;
   currency: string;
@@ -27,6 +31,10 @@ export type PublicBookingItem = {
   service_name_snapshot: string;
   duration_minutes_snapshot: number;
   price_snapshot: string;
+  pricing_model_snapshot: 'FLAT' | 'PER_PERSON';
+  unit_price_snapshot: string;
+  quantity_snapshot: number;
+  line_total_snapshot: string;
   currency_snapshot: string;
   instructions_snapshot?: string | null;
   sort_order: number;

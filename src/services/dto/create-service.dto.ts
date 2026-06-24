@@ -4,6 +4,7 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -50,19 +51,42 @@ export class CreateServiceDto {
   @IsInt()
   @IsPositive()
   @Max(100)
-  capacity?: number = 1;
+  capacity?: number;
 
   @IsOptional()
   @IsInt()
   @Min(1)
   @Max(100)
-  min_capacity?: number = 1;
+  min_capacity?: number;
 
   @IsOptional()
   @IsInt()
   @Min(1)
   @Max(100)
-  max_capacity?: number = 1;
+  max_capacity?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  min_party_size?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  max_party_size?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  slot_capacity?: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['FLAT', 'PER_PERSON'])
+  pricing_model?: 'FLAT' | 'PER_PERSON';
 
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)

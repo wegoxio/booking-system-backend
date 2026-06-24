@@ -48,6 +48,10 @@ function createService(overrides: Partial<Service> = {}): Service {
     capacity: 1,
     min_capacity: 1,
     max_capacity: 1,
+    min_party_size: 1,
+    max_party_size: 1,
+    slot_capacity: 1,
+    pricing_model: 'FLAT',
     price: '15.00',
     currency: 'USD',
     is_active: true,
@@ -100,6 +104,10 @@ function createBookingItem(overrides: Partial<BookingItem> = {}): BookingItem {
     buffer_before_minutes_snapshot: 5,
     buffer_after_minutes_snapshot: 5,
     price_snapshot: '15.00',
+    pricing_model_snapshot: 'FLAT',
+    unit_price_snapshot: '15.00',
+    quantity_snapshot: 1,
+    line_total_snapshot: '15.00',
     currency_snapshot: 'USD',
     instructions_snapshot: 'Llegar con el cabello limpio.',
     sort_order: 0,
@@ -240,17 +248,27 @@ describe('BookingsService manual creation', () => {
     const timeOffManagerRepo = {
       findOne: jest.fn().mockResolvedValue(null),
     };
+    const serviceManagerRepo = {
+      createQueryBuilder: jest.fn(() => ({
+        setLock: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(serviceEntity),
+      })),
+    };
 
     const dataSource = {
       transaction:
         dataSourceOverrides?.transaction ??
         jest.fn(async (callback: (manager: any) => Promise<unknown>) =>
           callback({
+            query: jest.fn().mockResolvedValue([]),
             getRepository: (entity: unknown) => {
               if (entity === Employee) return employeeManagerRepo;
               if (entity === Booking) return bookingManagerRepo;
               if (entity === BookingItem) return bookingItemManagerRepo;
               if (entity === EmployeeTimeOff) return timeOffManagerRepo;
+              if (entity === Service) return serviceManagerRepo;
               throw new Error('Unexpected repository');
             },
           }),
@@ -301,6 +319,38 @@ describe('BookingsService manual creation', () => {
     expect(
       notificationsService.sendBookingLifecycleNotifications,
     ).not.toHaveBeenCalled();
+  });
+
+  it('calculates PER_PERSON totals and immutable pricing snapshots', async () => {
+    service = buildService({
+      serviceOverrides: {
+        pricing_model: 'PER_PERSON',
+        price: '18.50',
+        max_party_size: 4,
+        slot_capacity: 4,
+        max_capacity: 4,
+        capacity: 4,
+      },
+    });
+
+    const result = await service.createManualBooking(
+      {
+        employee_id: 'employee-1',
+        service_ids: ['service-1'],
+        start_at_utc: '2026-03-19T14:00:00.000Z',
+        party_size: 4,
+        customer_name: 'Grupo',
+      },
+      { sub: 'user-1', role: 'TENANT_ADMIN', tenant_id: 'tenant-1' },
+    );
+
+    expect(result.total_price).toBe('74.00');
+    expect(result.items[0]).toMatchObject({
+      pricing_model_snapshot: 'PER_PERSON',
+      unit_price_snapshot: '18.50',
+      quantity_snapshot: 4,
+      line_total_snapshot: '74.00',
+    });
   });
 
   it('rejects a future manual booking that collides with active agenda when override is disabled', async () => {
@@ -373,6 +423,8 @@ describe('BookingsService manual creation', () => {
         min_capacity: 1,
         max_capacity: 2,
         capacity: 2,
+        max_party_size: 2,
+        slot_capacity: 2,
       },
     });
 
@@ -425,6 +477,8 @@ describe('BookingsService manual creation', () => {
       min_capacity: 1,
       max_capacity: 2,
       capacity: 2,
+      max_party_size: 2,
+      slot_capacity: 2,
     });
     const employee = createEmployee(serviceEntity);
     service = buildService({
@@ -432,6 +486,8 @@ describe('BookingsService manual creation', () => {
         min_capacity: 1,
         max_capacity: 2,
         capacity: 2,
+        max_party_size: 2,
+        slot_capacity: 2,
       },
       overlappingBookings: [
         createBooking(employee, {
@@ -468,6 +524,8 @@ describe('BookingsService manual creation', () => {
       min_capacity: 1,
       max_capacity: 2,
       capacity: 2,
+      max_party_size: 2,
+      slot_capacity: 2,
     });
     const employee = createEmployee(serviceEntity);
     service = buildService({
@@ -475,6 +533,8 @@ describe('BookingsService manual creation', () => {
         min_capacity: 1,
         max_capacity: 2,
         capacity: 2,
+        max_party_size: 2,
+        slot_capacity: 2,
       },
       overlappingBookings: [
         createBooking(employee, {
