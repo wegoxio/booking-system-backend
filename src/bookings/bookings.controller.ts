@@ -23,6 +23,7 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { CreateManualBookingDto } from './dto/create-manual-booking.dto';
 import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
+import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
 import type { CurrentJwtUser } from '../auth/types';
 
 @Controller('bookings')
@@ -130,5 +131,14 @@ export class BookingsController {
     @CurrentUser() currentUser: CurrentJwtUser,
   ) {
     return this.bookingsService.updateStatus(id, dto, currentUser);
+  }
+
+  @Patch(':id/reschedule')
+  reschedule(
+    @Param('id') id: string,
+    @Body() dto: RescheduleBookingDto,
+    @CurrentUser() currentUser: CurrentJwtUser,
+  ) {
+    return this.bookingsService.rescheduleBooking(id, dto, currentUser);
   }
 }

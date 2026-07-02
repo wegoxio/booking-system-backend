@@ -53,6 +53,7 @@ import {
 } from './bookings.constants';
 import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
+import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
 import {
   PublicBookingConfirmation,
   PublicBookingEmployee,
@@ -791,12 +792,12 @@ export class BookingsService {
         ];
       if (!allowedTransitions?.includes(nextStatus)) {
         throw new ConflictException(
-          `Cannot transition booking from ${previousStatus} to ${nextStatus}`,
+          `No se puede cambiar la cita de ${this.formatBookingStatusLabel(previousStatus)} a ${this.formatBookingStatusLabel(nextStatus)}.`,
         );
       }
       if (isCancellationStatus && !cancellationReason) {
         throw new BadRequestException(
-          'Cancellation reason is required when cancelling or marking a booking as no-show',
+          'Debes indicar el motivo al cancelar una cita o marcarla como no asistida.',
         );
       }
       if (!isCancellationStatus && cancellationReason) {
@@ -866,6 +867,196 @@ export class BookingsService {
     }
 
     return hydratedBooking;
+  }
+
+  async rescheduleBooking(
+    id: string,
+    dto: RescheduleBookingDto,
+    currentUser: CurrentJwtUser,
+  ): Promise<Booking> {
+    const tenantId = this.requireTenantId(currentUser);
+    const requestedStartAt = new Date(dto.start_at_utc);
+    if (Number.isNaN(requestedStartAt.getTime())) {
+      throw new BadRequestException('La nueva fecha de la cita no es válida.');
+    }
+
+    const booking = await this.findOneByTenantId(id, tenantId);
+    if (!['PENDING', 'CONFIRMED'].includes(booking.status)) {
+      throw new ConflictException(
+        'Solo puedes reprogramar citas pendientes o confirmadas.',
+      );
+    }
+
+    const serviceIds = this.uniqueIds(
+      booking.items.map((item) => item.service_id),
+    );
+    if (serviceIds.length !== 1) {
+      throw new BadRequestException(
+        'Esta cita no se puede reprogramar automáticamente porque no tiene un único servicio asociado.',
+      );
+    }
+
+    const selectedServices = await this.resolveActiveServices(
+      tenantId,
+      serviceIds,
+    );
+    const selectedService = selectedServices[0];
+    const employee = await this.findTenantEmployee(
+      booking.employee_id,
+      tenantId,
+      true,
+    );
+    this.assertEmployeeOffersAllServices(employee, serviceIds);
+
+    const partySize = this.normalizePartySize(booking.party_size);
+    this.assertPartySizeAllowed(selectedService, partySize);
+
+    const timezone =
+      dto.timezone?.trim() || employee.schedule_timezone || 'UTC';
+    this.assertValidTimezone(timezone);
+    const localDate = formatDateInTimeZone(requestedStartAt, timezone);
+    const availability = await this.computeAvailability({
+      tenantId,
+      employeeId: employee.id,
+      serviceIds,
+      date: localDate,
+      timezone,
+      partySize,
+      excludeBookingId: booking.id,
+    });
+
+    const matchedSlot = availability.slots.find(
+      (slot) => slot.start_at_utc.getTime() === requestedStartAt.getTime(),
+    );
+    if (!matchedSlot) {
+      throw new ConflictException(
+        'El nuevo horario seleccionado ya no está disponible.',
+      );
+    }
+
+    const bufferBeforeMinutes =
+      this.getTotalBufferBeforeMinutes(selectedServices);
+    const bufferAfterMinutes =
+      this.getTotalBufferAfterMinutes(selectedServices);
+    const nextStartAt = matchedSlot.start_at_utc;
+    const nextEndAt = matchedSlot.end_at_utc;
+    const nextBusyStartAt = new Date(
+      nextStartAt.getTime() - bufferBeforeMinutes * 60 * 1000,
+    );
+    const nextBusyEndAt = new Date(
+      nextEndAt.getTime() + bufferAfterMinutes * 60 * 1000,
+    );
+
+    const result = await this.dataSource.transaction(async (manager) => {
+      const lockedBooking = await manager
+        .getRepository(Booking)
+        .createQueryBuilder('booking')
+        .setLock('pessimistic_write')
+        .leftJoinAndSelect('booking.items', 'items')
+        .where('booking.id = :id', { id })
+        .andWhere('booking.tenant_id = :tenantId', { tenantId })
+        .getOne();
+
+      if (!lockedBooking) {
+        throw new NotFoundException('No se encontró la cita');
+      }
+      if (!['PENDING', 'CONFIRMED'].includes(lockedBooking.status)) {
+        throw new ConflictException(
+          'Solo puedes reprogramar citas pendientes o confirmadas.',
+        );
+      }
+
+      const lockedService = await manager
+        .getRepository(Service)
+        .createQueryBuilder('service')
+        .setLock('pessimistic_read')
+        .where('service.id = :serviceId', { serviceId: selectedService.id })
+        .andWhere('service.tenant_id = :tenantId', { tenantId })
+        .andWhere('service.is_active = true')
+        .getOne();
+      if (!lockedService) {
+        throw new ConflictException('El servicio ya no está disponible.');
+      }
+      this.assertPartySizeAllowed(lockedService, partySize);
+
+      const lockedEmployee = await manager
+        .getRepository(Employee)
+        .createQueryBuilder('employee')
+        .setLock('pessimistic_write')
+        .where('employee.id = :employeeId', { employeeId: employee.id })
+        .andWhere('employee.tenant_id = :tenantId', { tenantId })
+        .andWhere('employee.is_active = true')
+        .getOne();
+      if (!lockedEmployee) {
+        throw new BadRequestException(
+          'El profesional está inactivo o no disponible',
+        );
+      }
+
+      const overlappingBookings = await manager
+        .getRepository(Booking)
+        .createQueryBuilder('booking')
+        .setLock('pessimistic_write')
+        .leftJoinAndSelect('booking.items', 'items')
+        .where('booking.tenant_id = :tenantId', { tenantId })
+        .andWhere('booking.employee_id = :employeeId', {
+          employeeId: employee.id,
+        })
+        .andWhere('booking.id <> :id', { id: lockedBooking.id })
+        .andWhere('booking.status IN (:...statuses)', {
+          statuses: [...BOOKING_BLOCKING_STATUSES],
+        })
+        .andWhere('booking.busy_start_at_utc < :busyEndAt', {
+          busyEndAt: nextBusyEndAt,
+        })
+        .andWhere('booking.busy_end_at_utc > :busyStartAt', {
+          busyStartAt: nextBusyStartAt,
+        })
+        .getMany();
+
+      if (
+        !this.hasCapacityForRequestedSlot({
+          bookings: overlappingBookings,
+          serviceId: selectedService.id,
+          partySize,
+          maxCapacity: this.getServiceSlotCapacity(lockedService),
+          startAt: nextBusyStartAt,
+          endAt: nextBusyEndAt,
+          sessionStartAt: nextStartAt,
+          sessionEndAt: nextEndAt,
+        })
+      ) {
+        throw new ConflictException(
+          'El nuevo horario seleccionado ya no está disponible.',
+        );
+      }
+
+      const previousStartAt = lockedBooking.start_at_utc;
+      const previousEndAt = lockedBooking.end_at_utc;
+      lockedBooking.start_at_utc = nextStartAt;
+      lockedBooking.end_at_utc = nextEndAt;
+      lockedBooking.busy_start_at_utc = nextBusyStartAt;
+      lockedBooking.busy_end_at_utc = nextBusyEndAt;
+
+      const updated = await manager.getRepository(Booking).save(lockedBooking);
+      return { booking: updated, previousStartAt, previousEndAt };
+    });
+
+    await this.auditService.log({
+      actor_user_id: currentUser.sub,
+      tenant_id: tenantId,
+      action: 'BOOKING_RESCHEDULED',
+      entity: 'booking',
+      entity_id: result.booking.id,
+      metadata: {
+        previous_start_at_utc: result.previousStartAt,
+        previous_end_at_utc: result.previousEndAt,
+        start_at_utc: result.booking.start_at_utc,
+        end_at_utc: result.booking.end_at_utc,
+      },
+    });
+
+    return this.findOneByTenantId(result.booking.id, tenantId);
   }
 
   private async createBookingForTenant(
@@ -986,7 +1177,7 @@ export class BookingsService {
       countryIso2: dto.customer_phone_country_iso2,
       nationalNumber: dto.customer_phone_national_number,
       legacyPhone: dto.customer_phone,
-      fieldLabel: 'customer phone',
+      fieldLabel: 'teléfono del cliente',
     });
 
     const transactionResult = await this.dataSource.transaction(
@@ -1077,8 +1268,8 @@ export class BookingsService {
           ) {
             throw new ConflictException(
               options.creationMode === 'SLOT'
-                ? 'Selected slot is no longer available'
-                : 'Selected time overlaps an active booking',
+                ? 'El horario seleccionado ya no está disponible.'
+                : 'El horario seleccionado se solapa con una cita activa.',
             );
           }
         }
@@ -1103,7 +1294,7 @@ export class BookingsService {
 
           if (overlappingTimeOff) {
             throw new ConflictException(
-              'Selected time overlaps an employee time-off block',
+              'El horario seleccionado se solapa con una ausencia del profesional.',
             );
           }
         }
@@ -1222,7 +1413,7 @@ export class BookingsService {
 
     if (this.isCancellationStatus(status) && !cancellationReason) {
       throw new BadRequestException(
-        'Cancellation reason is required when creating a cancelled or no-show booking',
+        'Debes indicar el motivo al crear una cita cancelada o marcada como no asistida.',
       );
     }
 
@@ -1337,7 +1528,7 @@ export class BookingsService {
 
     if (rules.length === 0) {
       throw new ConflictException(
-        'Selected time is outside the employee working schedule',
+        'El horario seleccionado está fuera del horario laboral del profesional.',
       );
     }
 
@@ -1383,7 +1574,7 @@ export class BookingsService {
 
     if (!fits) {
       throw new ConflictException(
-        'Selected time is outside availability or overlaps the agenda',
+        'El horario seleccionado está fuera de la disponibilidad o se solapa con la agenda.',
       );
     }
   }
@@ -1395,6 +1586,7 @@ export class BookingsService {
     date: string;
     timezone?: string;
     partySize?: number;
+    excludeBookingId?: string;
   }): Promise<{
     employee_id: string;
     date: string;
@@ -1530,11 +1722,14 @@ export class BookingsService {
       }),
     ]);
 
+    const bookingCapacitySource = input.excludeBookingId
+      ? activeBookings.filter((booking) => booking.id !== input.excludeBookingId)
+      : activeBookings;
     const selectedServiceId = selectedService.id;
-    const sameServiceBookings = activeBookings.filter((booking) =>
+    const sameServiceBookings = bookingCapacitySource.filter((booking) =>
       this.bookingIncludesService(booking, selectedServiceId),
     );
-    const incompatibleBookings = activeBookings.filter(
+    const incompatibleBookings = bookingCapacitySource.filter(
       (booking) => !this.bookingIncludesService(booking, selectedServiceId),
     );
     const busyIntervals = [
@@ -1894,7 +2089,7 @@ export class BookingsService {
 
     if (services.length !== uniqueServiceIds.length) {
       throw new BadRequestException(
-        'Some services are invalid, inactive, or outside tenant scope',
+        'Alguno de los servicios seleccionados no existe, está inactivo o no pertenece a este negocio.',
       );
     }
 
@@ -1915,7 +2110,7 @@ export class BookingsService {
 
     if (missing.length > 0) {
       throw new BadRequestException(
-        'Selected employee does not provide all requested services',
+        'El profesional seleccionado no ofrece todos los servicios solicitados.',
       );
     }
   }
@@ -1955,7 +2150,7 @@ export class BookingsService {
 
       if (!insideWorkBlock) {
         throw new BadRequestException(
-          'Each break must be fully contained within a working-hour interval',
+          'Cada descanso debe estar completamente dentro de un bloque de horario laboral.',
         );
       }
     }
@@ -2010,6 +2205,25 @@ export class BookingsService {
 
   private isBlockingStatus(status: string): status is BookingStatus {
     return (BOOKING_BLOCKING_STATUSES as readonly string[]).includes(status);
+  }
+
+  private formatBookingStatusLabel(status: string): string {
+    switch (status) {
+      case 'PENDING':
+        return 'pendiente';
+      case 'CONFIRMED':
+        return 'confirmada';
+      case 'IN_PROGRESS':
+        return 'en curso';
+      case 'COMPLETED':
+        return 'completada';
+      case 'CANCELLED':
+        return 'cancelada';
+      case 'NO_SHOW':
+        return 'no asistida';
+      default:
+        return status;
+    }
   }
 
   private toPublicBookingEmployee(
