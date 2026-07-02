@@ -304,7 +304,7 @@ export class ServicesService {
 
     if (employees.length !== uniqueIds.length) {
       throw new BadRequestException(
-        'Some employees are invalid, inactive, or not part of this tenant',
+        'Alguno de los profesionales seleccionados no existe, está inactivo o no pertenece a este negocio.',
       );
     }
 

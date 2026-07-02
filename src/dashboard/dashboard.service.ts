@@ -141,28 +141,28 @@ export class DashboardService {
       metrics: [
         {
           key: 'active_tenants',
-          label: 'Tenants activos',
+          label: 'Negocios activos',
           value: String(activeTenants),
-          hint: `de ${totalTenants} tenants`,
+          hint: `de ${totalTenants} negocios`,
           delta: null,
         },
         {
           key: 'tenant_admins',
-          label: 'Tenant admins',
+          label: 'Administradores de negocio',
           value: String(totalTenantAdmins),
           hint: 'administradores registrados',
           delta: null,
         },
         {
           key: 'bookings_month',
-          label: 'Bookings del mes',
+          label: 'Citas del mes',
           value: this.formatInteger(currentSummary.bookings),
           hint: `mes anterior: ${this.formatInteger(previousSummary.bookings)}`,
           delta: bookingsDelta,
         },
         {
           key: 'revenue_month',
-          label: 'Revenue del mes',
+          label: 'Ingresos del mes',
           value: this.formatCurrency(
             currentSummary.revenue,
             currentSummary.currency,
@@ -281,7 +281,7 @@ export class DashboardService {
         },
         {
           key: 'revenue_month',
-          label: 'Revenue del mes',
+          label: 'Ingresos del mes',
           value: this.formatCurrency(
             currentSummary.revenue,
             currentSummary.currency,
