@@ -1,9 +1,11 @@
+import './instrument';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import { setupSwagger } from './swagger';
 
 function normalizeOrigin(origin: string): string {
   return origin.trim().replace(/\/+$/, '');
@@ -90,6 +92,8 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  setupSwagger(app);
 
   await app.listen(process.env.PORT ?? 3000);
 }

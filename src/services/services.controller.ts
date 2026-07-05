@@ -19,6 +19,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
 import { ToggleServiceStatusDto } from './dto/toggle-service.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 type CurrentJwtUser = {
   sub: string;
@@ -26,6 +27,8 @@ type CurrentJwtUser = {
   tenant_id: string | null;
 };
 
+@ApiTags('Services')
+@ApiBearerAuth('access-token')
 @Controller('services')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('TENANT_ADMIN')

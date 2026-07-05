@@ -17,10 +17,7 @@ import {
   PaginatedResponse,
   PaginationQueryDto,
 } from '../common/dto/pagination-query.dto';
-import {
-  normalizeCurrency,
-  normalizeMoney,
-} from '../common/money/money.util';
+import { normalizeCurrency, normalizeMoney } from '../common/money/money.util';
 
 type CurrentJwtUser = {
   sub: string;
@@ -200,11 +197,16 @@ export class ServicesService {
         }
         service.name = normalizedName;
       }
-      if (dto.description !== undefined) service.description = dto.description?.trim() || null;
-      if (dto.instructions !== undefined) service.instructions = dto.instructions?.trim() || null;
-      if (dto.duration_minutes !== undefined) service.duration_minutes = dto.duration_minutes;
-      if (dto.buffer_before_minutes !== undefined) service.buffer_before_minutes = dto.buffer_before_minutes;
-      if (dto.buffer_after_minutes !== undefined) service.buffer_after_minutes = dto.buffer_after_minutes;
+      if (dto.description !== undefined)
+        service.description = dto.description?.trim() || null;
+      if (dto.instructions !== undefined)
+        service.instructions = dto.instructions?.trim() || null;
+      if (dto.duration_minutes !== undefined)
+        service.duration_minutes = dto.duration_minutes;
+      if (dto.buffer_before_minutes !== undefined)
+        service.buffer_before_minutes = dto.buffer_before_minutes;
+      if (dto.buffer_after_minutes !== undefined)
+        service.buffer_after_minutes = dto.buffer_after_minutes;
 
       if (
         dto.capacity !== undefined ||
@@ -225,13 +227,18 @@ export class ServicesService {
       }
 
       if (dto.price !== undefined) service.price = normalizeMoney(dto.price);
-      if (dto.currency !== undefined) service.currency = normalizeCurrency(dto.currency);
-      if (dto.pricing_model !== undefined) service.pricing_model = dto.pricing_model;
+      if (dto.currency !== undefined)
+        service.currency = normalizeCurrency(dto.currency);
+      if (dto.pricing_model !== undefined)
+        service.pricing_model = dto.pricing_model;
       if (dto.is_active !== undefined) service.is_active = dto.is_active;
       if (dto.sort_order !== undefined) service.sort_order = dto.sort_order;
-      if (dto.requires_confirmation !== undefined) service.requires_confirmation = dto.requires_confirmation;
-      if (dto.min_notice_minutes !== undefined) service.min_notice_minutes = dto.min_notice_minutes;
-      if (dto.booking_window_days !== undefined) service.booking_window_days = dto.booking_window_days;
+      if (dto.requires_confirmation !== undefined)
+        service.requires_confirmation = dto.requires_confirmation;
+      if (dto.min_notice_minutes !== undefined)
+        service.min_notice_minutes = dto.min_notice_minutes;
+      if (dto.booking_window_days !== undefined)
+        service.booking_window_days = dto.booking_window_days;
       if (dto.employee_ids !== undefined) {
         service.employees = await this.resolveTenantEmployees(
           dto.employee_ids,
@@ -245,7 +252,7 @@ export class ServicesService {
     const hydrated = await this.findOne(id, currentUser);
     await this.auditService.log({
       actor_user_id: currentUser.sub,
-      tenant_id: currentUser.tenant_id!,
+      tenant_id: currentUser.tenant_id,
       action: 'SERVICE_UPDATED',
       entity: 'service',
       entity_id: hydrated.id,
@@ -324,11 +331,23 @@ export class ServicesService {
     existing?: Service,
   ): CapacityConfig {
     const minPartySize =
-      dto.min_party_size ?? dto.min_capacity ?? existing?.min_party_size ?? existing?.min_capacity ?? 1;
+      dto.min_party_size ??
+      dto.min_capacity ??
+      existing?.min_party_size ??
+      existing?.min_capacity ??
+      1;
     const maxPartySize =
-      dto.max_party_size ?? dto.max_capacity ?? existing?.max_party_size ?? existing?.max_capacity ?? minPartySize;
+      dto.max_party_size ??
+      dto.max_capacity ??
+      existing?.max_party_size ??
+      existing?.max_capacity ??
+      minPartySize;
     const slotCandidate =
-      dto.slot_capacity ?? dto.capacity ?? existing?.slot_capacity ?? existing?.capacity ?? maxPartySize;
+      dto.slot_capacity ??
+      dto.capacity ??
+      existing?.slot_capacity ??
+      existing?.capacity ??
+      maxPartySize;
     const slotCapacity =
       dto.slot_capacity !== undefined
         ? slotCandidate
@@ -372,7 +391,10 @@ export class ServicesService {
     );
     const occupied = Number(rows[0]?.occupied_capacity ?? 0);
     const largestParty = Number(rows[0]?.largest_party ?? 0);
-    if (occupied > capacity.slotCapacity || largestParty > capacity.maxPartySize) {
+    if (
+      occupied > capacity.slotCapacity ||
+      largestParty > capacity.maxPartySize
+    ) {
       throw new ConflictException(
         `Existen reservas futuras: slot_capacity debe ser al menos ${occupied} y max_party_size al menos ${largestParty}.`,
       );

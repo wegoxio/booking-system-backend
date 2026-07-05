@@ -21,7 +21,9 @@ import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import { ReschedulePublicBookingDto } from './dto/reschedule-public-booking.dto';
 import { PublicBookingManagementAvailabilityQueryDto } from './dto/public-booking-management-availability-query.dto';
+import { ApiHeader, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Public bookings')
 @Controller('public/tenants/:tenantSlug/bookings')
 @Throttle({ default: { limit: 90, ttl: 60_000 } })
 export class BookingsPublicController {
@@ -59,6 +61,12 @@ export class BookingsPublicController {
   }
 
   @Post()
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    description:
+      'Clave de idempotencia entre 16 y 128 caracteres seguros para evitar reservas duplicadas.',
+  })
   @Throttle({ default: { limit: 12, ttl: 60_000 } })
   async create(
     @Param('tenantSlug') tenantSlug: string,
@@ -92,6 +100,7 @@ export class BookingsPublicController {
   }
 }
 
+@ApiTags('Public booking management')
 @Controller('public/bookings/manage/:token')
 @Throttle({ default: { limit: 60, ttl: 60_000 } })
 export class PublicBookingManagementController {
@@ -118,6 +127,12 @@ export class PublicBookingManagementController {
   }
 
   @Patch('reschedule')
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    description:
+      'Clave de idempotencia entre 16 y 128 caracteres seguros para evitar reprogramaciones duplicadas.',
+  })
   @Throttle({ default: { limit: 8, ttl: 60_000 } })
   async reschedule(
     @Param('token') token: string,

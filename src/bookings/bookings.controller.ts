@@ -25,7 +25,10 @@ import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
 import type { CurrentJwtUser } from '../auth/types';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Bookings')
+@ApiBearerAuth('access-token')
 @Controller('bookings')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('TENANT_ADMIN')

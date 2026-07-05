@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateAuthMfaChallenges1775800000000
-  implements MigrationInterface
-{
+export class CreateAuthMfaChallenges1775800000000 implements MigrationInterface {
   name = 'CreateAuthMfaChallenges1775800000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -40,9 +38,15 @@ export class CreateAuthMfaChallenges1775800000000
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_auth_mfa_challenges_used_at"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_auth_mfa_challenges_expires_at"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_auth_mfa_challenges_user_id"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_auth_mfa_challenges_used_at"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_auth_mfa_challenges_expires_at"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_auth_mfa_challenges_user_id"`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "auth_mfa_challenges"`);
   }
 }

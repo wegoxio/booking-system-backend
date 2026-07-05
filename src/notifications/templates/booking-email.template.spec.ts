@@ -75,6 +75,8 @@ describe('buildBookingLifecycleEmail', () => {
     expect(rendered.text).toContain(
       'Indicaciones: Llegar con el cabello limpio.',
     );
-    expect(rendered.text).toContain('Como llegar: https://www.google.com/maps/search/');
+    expect(rendered.text).toContain(
+      'Como llegar: https://www.google.com/maps/search/',
+    );
   });
 });

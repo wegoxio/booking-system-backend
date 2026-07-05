@@ -9,7 +9,8 @@ import { EmployeeScheduleBreak } from '../src/bookings/entities/employee-schedul
 import { EmployeeTimeOff } from '../src/bookings/entities/employee-time-off.entity';
 import { BookingsService } from '../src/bookings/bookings.service';
 
-const describeDb = process.env.RUN_DB_INTEGRATION === 'true' ? describe : describe.skip;
+const describeDb =
+  process.env.RUN_DB_INTEGRATION === 'true' ? describe : describe.skip;
 
 describeDb('Booking capacity concurrency (PostgreSQL)', () => {
   let tenant: Tenant;
@@ -106,8 +107,12 @@ describeDb('Booking capacity concurrency (PostgreSQL)', () => {
       );
 
     const results = await Promise.allSettled([command('A'), command('B')]);
-    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
-    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(
+      results.filter((result) => result.status === 'rejected'),
+    ).toHaveLength(1);
 
     const persisted = await AppDataSource.getRepository(Booking).find({
       where: { tenant_id: tenant.id },

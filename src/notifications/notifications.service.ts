@@ -402,7 +402,10 @@ export class NotificationsService {
     );
   }
 
-  private buildBookingManagementUrl(appPublicUrl: string, token: string): string {
+  private buildBookingManagementUrl(
+    appPublicUrl: string,
+    token: string,
+  ): string {
     return new URL(
       `/bookings/manage/${encodeURIComponent(token)}`,
       appPublicUrl.endsWith('/') ? appPublicUrl : `${appPublicUrl}/`,

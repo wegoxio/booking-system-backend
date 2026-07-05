@@ -8,10 +8,7 @@ import { createHash, randomBytes } from 'crypto';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { AuditService } from '../audit/audit.service';
 import { normalizePhoneInput } from '../common/phone/phone.util';
-import {
-  calculateLineTotal,
-  normalizeMoney,
-} from '../common/money/money.util';
+import { calculateLineTotal, normalizeMoney } from '../common/money/money.util';
 import { Employee } from '../employees/entities/employee.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Service } from '../services/entity/service.entity';
@@ -1270,9 +1267,7 @@ export class BookingsService {
       fieldLabel: 'teléfono del cliente',
     });
 
-    const managementToken = this.generateBookingManagementToken(
-      persistedEndAt,
-    );
+    const managementToken = this.generateBookingManagementToken(persistedEndAt);
 
     const transactionResult = await this.dataSource.transaction(
       async (manager) => {
@@ -1310,7 +1305,9 @@ export class BookingsService {
           lockedService.pricing_model ?? 'FLAT',
         );
         if (options.status === undefined && options.creationMode !== 'MANUAL') {
-          bookingStatus = lockedService.requires_confirmation ? 'PENDING' : 'CONFIRMED';
+          bookingStatus = lockedService.requires_confirmation
+            ? 'PENDING'
+            : 'CONFIRMED';
           shouldRequireActiveEmployee = true;
         }
 
@@ -1820,7 +1817,9 @@ export class BookingsService {
     ]);
 
     const bookingCapacitySource = input.excludeBookingId
-      ? activeBookings.filter((booking) => booking.id !== input.excludeBookingId)
+      ? activeBookings.filter(
+          (booking) => booking.id !== input.excludeBookingId,
+        )
       : activeBookings;
     const selectedServiceId = selectedService.id;
     const sameServiceBookings = bookingCapacitySource.filter((booking) =>
@@ -2028,7 +2027,11 @@ export class BookingsService {
   }
 
   private getServiceSlotCapacity(service: Service): number {
-    return service.slot_capacity ?? service.capacity ?? this.getServiceMaxCapacity(service);
+    return (
+      service.slot_capacity ??
+      service.capacity ??
+      this.getServiceMaxCapacity(service)
+    );
   }
 
   private assertPartySizeAllowed(service: Service, partySize: number): void {
@@ -2131,13 +2134,14 @@ export class BookingsService {
   private async findBookingByManagementToken(token: string): Promise<Booking> {
     const normalizedToken = token.trim();
     if (!/^[A-Za-z0-9_-]{32,256}$/.test(normalizedToken)) {
-      throw new NotFoundException('El enlace de gestión no es válido o expiró.');
+      throw new NotFoundException(
+        'El enlace de gestión no es válido o expiró.',
+      );
     }
 
     const booking = await this.bookingsRepository.findOne({
       where: {
-        management_token_hash:
-          this.hashBookingManagementToken(normalizedToken),
+        management_token_hash: this.hashBookingManagementToken(normalizedToken),
       },
       relations: {
         employee: true,
@@ -2150,7 +2154,9 @@ export class BookingsService {
       !booking.management_token_expires_at ||
       booking.management_token_expires_at.getTime() <= Date.now()
     ) {
-      throw new NotFoundException('El enlace de gestión no es válido o expiró.');
+      throw new NotFoundException(
+        'El enlace de gestión no es válido o expiró.',
+      );
     }
 
     return booking;
@@ -2459,9 +2465,7 @@ export class BookingsService {
     };
   }
 
-  private toPublicBookingManagement(
-    booking: Booking,
-  ): PublicBookingManagement {
+  private toPublicBookingManagement(booking: Booking): PublicBookingManagement {
     return {
       ...this.toPublicBookingConfirmation(booking),
       can_reschedule: ['PENDING', 'CONFIRMED'].includes(booking.status),

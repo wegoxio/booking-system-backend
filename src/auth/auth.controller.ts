@@ -32,7 +32,11 @@ import { ResolvePasswordResetDto } from './dto/resolve-password-reset.dto';
 import { CompletePasswordResetDto } from './dto/complete-password-reset.dto';
 import { ResolveTenantAdminOnboardingDto } from './dto/resolve-tenant-admin-onboarding.dto';
 import { CompleteTenantAdminOnboardingDto } from './dto/complete-tenant-admin-onboarding.dto';
+import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Auth')
+@ApiBearerAuth('access-token')
+@ApiCookieAuth('wegox_refresh')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -210,15 +214,10 @@ export class AuthController {
     @Body() dto: VerifyMfaCodeDto,
     @Req() req: Request,
   ) {
-    return this.authService.disableMfa(
-      user,
-      dto.code,
-      dto.recovery_code,
-      {
-        ip: req.ip ?? null,
-        user_agent: req.headers['user-agent'] ?? null,
-      },
-    );
+    return this.authService.disableMfa(user, dto.code, dto.recovery_code, {
+      ip: req.ip ?? null,
+      user_agent: req.headers['user-agent'] ?? null,
+    });
   }
 
   @UseGuards(JwtAuthGuard)
@@ -261,7 +260,10 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('sessions/revoke-others')
-  revokeOtherSessions(@CurrentUser() user: CurrentJwtUser, @Req() req: Request) {
+  revokeOtherSessions(
+    @CurrentUser() user: CurrentJwtUser,
+    @Req() req: Request,
+  ) {
     return this.authService.revokeOtherSessions(user, {
       ip: req.ip ?? null,
       user_agent: req.headers['user-agent'] ?? null,

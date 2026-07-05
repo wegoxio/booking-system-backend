@@ -149,6 +149,13 @@ export const envSchema = z
     RATE_LIMIT_TTL_MS: z.coerce.number().default(60000),
     RATE_LIMIT_LIMIT: z.coerce.number().default(120),
 
+    // Sentry
+    SENTRY_ENABLED: z.coerce.boolean().default(false),
+    SENTRY_DSN: z.string().url().optional(),
+    SENTRY_ENVIRONMENT: z.string().min(1).optional(),
+    SENTRY_RELEASE: z.string().min(1).optional(),
+    SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.02),
+
     // Argon2
     ARGON2_MEMORY_COST: z.coerce.number().default(65536),
     ARGON2_TIME_COST: z.coerce.number().default(3),

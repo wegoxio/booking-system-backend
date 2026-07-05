@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { RemindersService } from './reminders.service';
+import * as Sentry from '@sentry/nestjs';
 
 const REMINDER_CRON_JOB_NAMES = [
   'booking-reminders-dispatch',
@@ -137,6 +138,12 @@ export class RemindersScheduler implements OnModuleInit, OnModuleDestroy {
     try {
       await handler();
     } catch (error) {
+      Sentry.captureException(error, {
+        tags: {
+          component: 'reminders-scheduler',
+          cron_job: name,
+        },
+      });
       this.logger.error(`Cron job "${name}" failed: ${String(error)}`);
     }
   }
