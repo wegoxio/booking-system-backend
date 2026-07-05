@@ -563,4 +563,67 @@ describe('BookingsService manual creation', () => {
       ),
     ).rejects.toBeInstanceOf(ConflictException);
   });
+
+  it('filters booking list by local date range for calendar views', async () => {
+    service = buildService();
+
+    const todayQb = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getCount: jest.fn().mockResolvedValue(0),
+    };
+    const rangeQb = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      clone: jest.fn(),
+      select: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      offset: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getCount: jest.fn().mockResolvedValue(0),
+      getRawMany: jest.fn().mockResolvedValue([]),
+    };
+    const countCloneQb = {
+      getCount: jest.fn().mockResolvedValue(0),
+    };
+    const pageCloneQb = {
+      select: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      offset: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([]),
+    };
+
+    rangeQb.clone
+      .mockReturnValueOnce(countCloneQb)
+      .mockReturnValueOnce(pageCloneQb);
+    bookingsRepository.createQueryBuilder
+      .mockReturnValueOnce(todayQb)
+      .mockReturnValueOnce(rangeQb);
+
+    const result = await service.listBookings(
+      {
+        date_from: '2026-07-01',
+        date_to: '2026-07-31',
+        timezone: 'America/Caracas',
+      },
+      { sub: 'user-1', role: 'TENANT_ADMIN', tenant_id: 'tenant-1' },
+    );
+
+    expect(result.data).toEqual([]);
+    expect(rangeQb.andWhere).toHaveBeenCalledWith(
+      'booking.start_at_utc >= :dateFrom',
+      expect.objectContaining({
+        dateFrom: expect.any(Date),
+      }),
+    );
+    expect(rangeQb.andWhere).toHaveBeenCalledWith(
+      'booking.start_at_utc < :dateTo',
+      expect.objectContaining({
+        dateTo: expect.any(Date),
+      }),
+    );
+  });
 });

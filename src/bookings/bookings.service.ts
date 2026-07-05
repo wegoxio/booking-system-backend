@@ -648,6 +648,20 @@ export class BookingsService {
           end,
         },
       );
+    } else {
+      if (query.date_from) {
+        const { start } = getUtcRangeForLocalDate(query.date_from, timezone);
+        baseQb.andWhere('booking.start_at_utc >= :dateFrom', {
+          dateFrom: start,
+        });
+      }
+
+      if (query.date_to) {
+        const { end } = getUtcRangeForLocalDate(query.date_to, timezone);
+        baseQb.andWhere('booking.start_at_utc < :dateTo', {
+          dateTo: end,
+        });
+      }
     }
 
     if (query.q?.trim()) {
