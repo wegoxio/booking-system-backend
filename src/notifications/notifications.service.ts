@@ -4,7 +4,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Booking } from '../bookings/entities/booking.entity';
 import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
 import { Tenant } from '../tenant/entities/tenant.entity';
-import { User } from '../users/entities/user.entity';
 import { Repository } from 'typeorm';
 import { buildBookingLifecycleEmail } from './templates/booking-email.template';
 import { buildBookingCalendarAttachment } from './templates/booking-calendar.ics';
@@ -29,8 +28,6 @@ export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
   constructor(
-    @InjectRepository(User)
-    private readonly usersRepository: Repository<User>,
     @InjectRepository(Tenant)
     private readonly tenantsRepository: Repository<Tenant>,
     private readonly tenantSettingsService: TenantSettingsService,
@@ -45,6 +42,7 @@ export class NotificationsService {
       BookingNotificationEvent,
       'BOOKING_CREATED' | 'BOOKING_COMPLETED' | 'BOOKING_CANCELLED'
     >,
+    options: { managementToken?: string | null } = {},
   ): Promise<void> {
     if (!this.configService.get<boolean>('MAIL_ENABLED', false)) {
       this.logger.debug(
@@ -54,30 +52,12 @@ export class NotificationsService {
     }
 
     try {
-      const [context, tenantAdmins] = await Promise.all([
-        this.buildBookingNotificationContext(booking),
-        this.usersRepository.find({
-          where: {
-            tenant_id: booking.tenant_id,
-            role: 'TENANT_ADMIN',
-            is_active: true,
-          },
-          order: {
-            created_at: 'ASC',
-          },
-        }),
-      ]);
+      const context = await this.buildBookingNotificationContext(booking);
 
       const deliveries: Array<{
         audience: BookingNotificationAudience;
         recipient: MailRecipient;
-      }> = tenantAdmins
-        .map((admin) => this.toRecipient(admin.email, admin.name))
-        .filter((recipient): recipient is MailRecipient => Boolean(recipient))
-        .map((recipient) => ({
-          audience: 'TENANT_ADMIN' as const,
-          recipient,
-        }));
+      }> = [];
 
       const employeeRecipient = this.toRecipient(
         context.payload.employeeEmail,
@@ -118,9 +98,6 @@ export class NotificationsService {
         return;
       }
 
-      const adminRecipientsCount = dedupedDeliveries.filter(
-        (delivery) => delivery.audience === 'TENANT_ADMIN',
-      ).length;
       const employeeRecipientsCount = dedupedDeliveries.filter(
         (delivery) => delivery.audience === 'EMPLOYEE',
       ).length;
@@ -129,7 +106,7 @@ export class NotificationsService {
       ).length;
 
       this.logger.debug(
-        `Dispatching booking notification ${event} for booking ${booking.id}. recipients=${dedupedDeliveries.length} admins=${adminRecipientsCount} employees=${employeeRecipientsCount} customers=${customerRecipientsCount}`,
+        `Dispatching booking notification ${event} for booking ${booking.id}. recipients=${dedupedDeliveries.length} employees=${employeeRecipientsCount} customers=${customerRecipientsCount}`,
       );
 
       const results = await Promise.allSettled(
@@ -142,6 +119,13 @@ export class NotificationsService {
             booking: context.payload,
             appPublicUrl: context.appPublicUrl,
             assetBaseUrl: context.assetBaseUrl,
+            managementUrl:
+              delivery.audience === 'CUSTOMER' && options.managementToken
+                ? this.buildBookingManagementUrl(
+                    context.appPublicUrl,
+                    options.managementToken,
+                  )
+                : null,
             idempotencyKey: this.buildBookingIdempotencyKey(
               event,
               booking.id,
@@ -294,6 +278,13 @@ export class NotificationsService {
         tenantId: tenant.id,
         tenantName: tenant.name,
         tenantSlug: tenant.slug,
+        publicEmail: tenant.public_email,
+        phone: tenant.phone,
+        addressLine: tenant.address_line,
+        city: tenant.city,
+        state: tenant.state,
+        country: tenant.country,
+        postalCode: tenant.postal_code,
         settingsUpdatedAt: settings.updated_at.toISOString(),
         logoKey: settings.logo_key,
         branding: settings.branding,
@@ -344,6 +335,7 @@ export class NotificationsService {
     booking: BookingNotificationPayload;
     appPublicUrl: string;
     assetBaseUrl: string;
+    managementUrl?: string | null;
     idempotencyKey: string;
   }): Promise<void> {
     const rendered = buildBookingLifecycleEmail({
@@ -353,6 +345,7 @@ export class NotificationsService {
       booking: input.booking,
       appPublicUrl: input.appPublicUrl,
       assetBaseUrl: input.assetBaseUrl,
+      managementUrl: input.managementUrl,
     });
     const calendarAttachment = buildBookingCalendarAttachment({
       event: input.event,
@@ -407,6 +400,13 @@ export class NotificationsService {
       0,
       256,
     );
+  }
+
+  private buildBookingManagementUrl(appPublicUrl: string, token: string): string {
+    return new URL(
+      `/bookings/manage/${encodeURIComponent(token)}`,
+      appPublicUrl.endsWith('/') ? appPublicUrl : `${appPublicUrl}/`,
+    ).toString();
   }
 
   private toRecipient(

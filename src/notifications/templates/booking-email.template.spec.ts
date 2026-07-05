@@ -11,6 +11,13 @@ describe('buildBookingLifecycleEmail', () => {
         tenantId: 'tenant-1',
         tenantName: 'Barberia Centro',
         tenantSlug: 'barberia-centro',
+        publicEmail: 'contacto@barberia.test',
+        phone: '+58 4121234567',
+        addressLine: 'Av. Principal, local 12',
+        city: 'Caracas',
+        state: 'Distrito Capital',
+        country: 'Venezuela',
+        postalCode: '1010',
         settingsUpdatedAt: '2026-03-18T10:00:00.000Z',
         logoKey: null,
         branding: {
@@ -62,8 +69,12 @@ describe('buildBookingLifecycleEmail', () => {
 
     expect(rendered.html).toContain('Indicaciones');
     expect(rendered.html).toContain('Llegar con el cabello limpio.');
+    expect(rendered.html).toContain('Como llegar');
+    expect(rendered.html).toContain('https://www.google.com/maps/search/');
+    expect(rendered.html).toContain('+58 4121234567');
     expect(rendered.text).toContain(
       'Indicaciones: Llegar con el cabello limpio.',
     );
+    expect(rendered.text).toContain('Como llegar: https://www.google.com/maps/search/');
   });
 });

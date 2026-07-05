@@ -15,6 +15,12 @@ export type RefreshJwtPayload = {
   token_version: number;
 };
 
+export type MfaChallengePayload = {
+  sub: string;
+  purpose: 'mfa_login';
+  jti: string;
+};
+
 export type CurrentJwtUser = {
   sub: string;
   id: string;
@@ -37,6 +43,21 @@ export type CurrentJwtUser = {
 export type AuthAccessTokenResponse = {
   access_token: string;
 };
+
+export type AuthMfaChallengeResponse = {
+  mfa_required: true;
+  challenge_token: string;
+  expires_at: string;
+  user: {
+    email: string;
+    name: string;
+    role: UserRole;
+  };
+};
+
+export type AuthLoginResponse =
+  | AuthAccessTokenResponse
+  | AuthMfaChallengeResponse;
 
 export type AuthTokensBundle = {
   access_token: string;

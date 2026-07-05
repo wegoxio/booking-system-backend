@@ -1,5 +1,5 @@
 export type CreateAuditLogInput = {
-  actor_user_id: string;
+  actor_user_id: string | null;
   tenant_id: string | null;
   action: string;
   message?: string | null;

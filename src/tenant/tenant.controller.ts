@@ -25,20 +25,37 @@ type CurrentJwtUser = {
 
 @Controller('tenant')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('SUPER_ADMIN')
 export class TenantController {
   constructor(private readonly tenantService: TenantService) {}
 
+  @Get('me')
+  @Roles('TENANT_ADMIN')
+  findCurrentTenant(@CurrentUser() currentUser: CurrentJwtUser) {
+    return this.tenantService.findCurrentTenant(currentUser);
+  }
+
+  @Patch('me')
+  @Roles('TENANT_ADMIN')
+  updateCurrentTenant(
+    @Body() data: UpdateTenantDto,
+    @CurrentUser() currentUser: CurrentJwtUser,
+  ) {
+    return this.tenantService.updateCurrentTenant(data, currentUser);
+  }
+
+  @Roles('SUPER_ADMIN')
   @Get()
   findAll(@Query() query: PaginationQueryDto) {
     return this.tenantService.findAll(query);
   }
 
+  @Roles('SUPER_ADMIN')
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.tenantService.findOne(id);
   }
 
+  @Roles('SUPER_ADMIN')
   @Post()
   create(
     @Body() data: CreateTenantDto,
@@ -47,6 +64,7 @@ export class TenantController {
     return this.tenantService.create(data, currentUser);
   }
 
+  @Roles('SUPER_ADMIN')
   @Patch(':id')
   update(
     @Param('id') id: string,
