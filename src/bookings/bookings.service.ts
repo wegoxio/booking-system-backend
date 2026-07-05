@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { createHash, randomBytes } from 'crypto';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { AuditService } from '../audit/audit.service';
 import { normalizePhoneInput } from '../common/phone/phone.util';
@@ -57,9 +58,11 @@ import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
 import {
   PublicBookingConfirmation,
   PublicBookingEmployee,
+  PublicBookingManagement,
   PublicBookingService,
 } from './bookings-public.types';
 import { CreateManualBookingDto } from './dto/create-manual-booking.dto';
+import { ReschedulePublicBookingDto } from './dto/reschedule-public-booking.dto';
 
 type CurrentJwtUser = {
   sub: string;
@@ -875,6 +878,93 @@ export class BookingsService {
     currentUser: CurrentJwtUser,
   ): Promise<Booking> {
     const tenantId = this.requireTenantId(currentUser);
+    return this.rescheduleBookingByTenantId(id, dto, tenantId, currentUser.sub);
+  }
+
+  async findPublicBookingManagementByToken(
+    token: string,
+  ): Promise<PublicBookingManagement> {
+    const booking = await this.findBookingByManagementToken(token);
+    return this.toPublicBookingManagement(booking);
+  }
+
+  async getPublicBookingManagementAvailability(
+    token: string,
+    query: Pick<AvailabilityQueryDto, 'date' | 'timezone'>,
+  ): Promise<{
+    employee_id: string;
+    date: string;
+    timezone: string;
+    slot_interval_minutes: number;
+    required_duration_minutes: number;
+    service_ids: string[];
+    slots: Array<{
+      start_at_utc: string;
+      end_at_utc: string;
+      slot_capacity: number;
+      occupied_capacity: number;
+      available_capacity: number;
+      requested_party_size: number;
+    }>;
+  }> {
+    const booking = await this.findBookingByManagementToken(token);
+    const serviceIds = this.uniqueIds(
+      booking.items.map((item) => item.service_id),
+    );
+    if (serviceIds.length !== 1) {
+      throw new BadRequestException(
+        'Esta cita no se puede reprogramar automáticamente porque no tiene un único servicio asociado.',
+      );
+    }
+
+    const availability = await this.computeAvailability({
+      tenantId: booking.tenant_id,
+      employeeId: booking.employee_id,
+      serviceIds,
+      date: query.date,
+      timezone: query.timezone,
+      partySize: this.normalizePartySize(booking.party_size),
+      excludeBookingId: booking.id,
+    });
+
+    return {
+      employee_id: availability.employee_id,
+      date: availability.date,
+      timezone: availability.timezone,
+      slot_interval_minutes: availability.slot_interval_minutes,
+      required_duration_minutes: availability.required_duration_minutes,
+      service_ids: availability.service_ids,
+      slots: availability.slots.map((slot) => ({
+        start_at_utc: slot.start_at_utc.toISOString(),
+        end_at_utc: slot.end_at_utc.toISOString(),
+        slot_capacity: slot.slot_capacity,
+        occupied_capacity: slot.occupied_capacity,
+        available_capacity: slot.available_capacity,
+        requested_party_size: slot.requested_party_size,
+      })),
+    };
+  }
+
+  async reschedulePublicBookingByManagementToken(
+    token: string,
+    dto: ReschedulePublicBookingDto,
+  ): Promise<PublicBookingManagement> {
+    const booking = await this.findBookingByManagementToken(token);
+    const updated = await this.rescheduleBookingByTenantId(
+      booking.id,
+      dto,
+      booking.tenant_id,
+      null,
+    );
+    return this.toPublicBookingManagement(updated);
+  }
+
+  private async rescheduleBookingByTenantId(
+    id: string,
+    dto: RescheduleBookingDto,
+    tenantId: string,
+    actorUserId: string | null,
+  ): Promise<Booking> {
     const requestedStartAt = new Date(dto.start_at_utc);
     if (Number.isNaN(requestedStartAt.getTime())) {
       throw new BadRequestException('La nueva fecha de la cita no es válida.');
@@ -1043,7 +1133,7 @@ export class BookingsService {
     });
 
     await this.auditService.log({
-      actor_user_id: currentUser.sub,
+      actor_user_id: actorUserId,
       tenant_id: tenantId,
       action: 'BOOKING_RESCHEDULED',
       entity: 'booking',
@@ -1180,6 +1270,10 @@ export class BookingsService {
       fieldLabel: 'teléfono del cliente',
     });
 
+    const managementToken = this.generateBookingManagementToken(
+      persistedEndAt,
+    );
+
     const transactionResult = await this.dataSource.transaction(
       async (manager) => {
         if (options.idempotencyKey) {
@@ -1310,6 +1404,8 @@ export class BookingsService {
         const created = manager.getRepository(Booking).create({
           tenant_id: tenantId,
           idempotency_key: options.idempotencyKey ?? null,
+          management_token_hash: managementToken.hash,
+          management_token_expires_at: managementToken.expiresAt,
           employee_id: employee.id,
           start_at_utc: persistedStartAt,
           end_at_utc: persistedEndAt,
@@ -1391,6 +1487,7 @@ export class BookingsService {
         this.notificationsService.sendBookingLifecycleNotifications(
           hydratedBooking,
           'BOOKING_CREATED',
+          { managementToken: managementToken.token },
         );
 
       if (options.waitForCreateNotifications) {
@@ -2010,6 +2107,55 @@ export class BookingsService {
     return currentUser.tenant_id;
   }
 
+  private generateBookingManagementToken(referenceEndAt: Date): {
+    token: string;
+    hash: string;
+    expiresAt: Date;
+  } {
+    const token = randomBytes(32).toString('base64url');
+    const expiresAt = new Date(
+      Math.max(referenceEndAt.getTime(), Date.now()) + 30 * 24 * 60 * 60 * 1000,
+    );
+
+    return {
+      token,
+      hash: this.hashBookingManagementToken(token),
+      expiresAt,
+    };
+  }
+
+  private hashBookingManagementToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private async findBookingByManagementToken(token: string): Promise<Booking> {
+    const normalizedToken = token.trim();
+    if (!/^[A-Za-z0-9_-]{32,256}$/.test(normalizedToken)) {
+      throw new NotFoundException('El enlace de gestión no es válido o expiró.');
+    }
+
+    const booking = await this.bookingsRepository.findOne({
+      where: {
+        management_token_hash:
+          this.hashBookingManagementToken(normalizedToken),
+      },
+      relations: {
+        employee: true,
+        items: true,
+      },
+    });
+
+    if (
+      !booking ||
+      !booking.management_token_expires_at ||
+      booking.management_token_expires_at.getTime() <= Date.now()
+    ) {
+      throw new NotFoundException('El enlace de gestión no es válido o expiró.');
+    }
+
+    return booking;
+  }
+
   private async findOneByTenantId(
     id: string,
     tenantId: string,
@@ -2310,6 +2456,15 @@ export class BookingsService {
         instructions_snapshot: item.instructions_snapshot,
         sort_order: item.sort_order,
       })),
+    };
+  }
+
+  private toPublicBookingManagement(
+    booking: Booking,
+  ): PublicBookingManagement {
+    return {
+      ...this.toPublicBookingConfirmation(booking),
+      can_reschedule: ['PENDING', 'CONFIRMED'].includes(booking.status),
     };
   }
 }

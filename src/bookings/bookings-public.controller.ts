@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -18,6 +19,8 @@ import { CreatePublicBookingDto } from './dto/create-public-booking.dto';
 import { TurnstileService } from '../captcha/turnstile.service';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
+import { ReschedulePublicBookingDto } from './dto/reschedule-public-booking.dto';
+import { PublicBookingManagementAvailabilityQueryDto } from './dto/public-booking-management-availability-query.dto';
 
 @Controller('public/tenants/:tenantSlug/bookings')
 @Throttle({ default: { limit: 90, ttl: 60_000 } })
@@ -85,6 +88,65 @@ export class BookingsPublicController {
       tenantSlug,
       bookingPayload as CreateBookingDto,
       normalizedIdempotencyKey,
+    );
+  }
+}
+
+@Controller('public/bookings/manage/:token')
+@Throttle({ default: { limit: 60, ttl: 60_000 } })
+export class PublicBookingManagementController {
+  constructor(
+    private readonly bookingsService: BookingsService,
+    private readonly turnstileService: TurnstileService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  @Get()
+  findOne(@Param('token') token: string) {
+    return this.bookingsService.findPublicBookingManagementByToken(token);
+  }
+
+  @Get('availability')
+  getAvailability(
+    @Param('token') token: string,
+    @Query() query: PublicBookingManagementAvailabilityQueryDto,
+  ) {
+    return this.bookingsService.getPublicBookingManagementAvailability(
+      token,
+      query,
+    );
+  }
+
+  @Patch('reschedule')
+  @Throttle({ default: { limit: 8, ttl: 60_000 } })
+  async reschedule(
+    @Param('token') token: string,
+    @Body() dto: ReschedulePublicBookingDto,
+    @Req() req: Request,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    const normalizedIdempotencyKey = idempotencyKey?.trim() ?? '';
+    if (!/^[A-Za-z0-9_-]{16,128}$/.test(normalizedIdempotencyKey)) {
+      throw new BadRequestException(
+        'Idempotency-Key es obligatorio y debe contener entre 16 y 128 caracteres seguros.',
+      );
+    }
+
+    await this.turnstileService.verifyOrThrow({
+      token: dto.captcha_token,
+      ip: req.ip ?? null,
+      expectedAction: this.configService.get<string>(
+        'TURNSTILE_BOOKING_RESCHEDULE_ACTION',
+        'booking_reschedule',
+      ),
+    });
+
+    const bookingPayload = { ...dto };
+    delete bookingPayload.captcha_token;
+
+    return this.bookingsService.reschedulePublicBookingByManagementToken(
+      token,
+      bookingPayload,
     );
   }
 }

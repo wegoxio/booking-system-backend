@@ -74,6 +74,14 @@ export class TenantService {
     return tenant;
   }
 
+  async findCurrentTenant(currentUser: CurrentJwtUser): Promise<Tenant> {
+    if (!currentUser.tenant_id) {
+      throw new NotFoundException('No hay un negocio asociado a esta cuenta.');
+    }
+
+    return this.findOne(currentUser.tenant_id);
+  }
+
   async findAll(
     query: PaginationQueryDto,
   ): Promise<PaginatedResponse<Tenant & { tenant_logo_url: string | null }>> {
@@ -135,6 +143,22 @@ export class TenantService {
       tenant.is_active = dto.is_active;
     }
 
+    const optionalTextFields = [
+      'address_line',
+      'city',
+      'state',
+      'country',
+      'postal_code',
+      'phone',
+      'public_email',
+    ] as const;
+
+    for (const field of optionalTextFields) {
+      if (dto[field] !== undefined) {
+        tenant[field] = dto[field]?.trim() || null;
+      }
+    }
+
     const updated = await this.tenantRepository.save(tenant);
     const statusChanged =
       dto.is_active !== undefined && previousIsActive !== updated.is_active;
@@ -159,6 +183,28 @@ export class TenantService {
     });
 
     return updated;
+  }
+
+  async updateCurrentTenant(
+    dto: UpdateTenantDto,
+    currentUser: CurrentJwtUser,
+  ): Promise<Tenant> {
+    if (!currentUser.tenant_id) {
+      throw new NotFoundException('No hay un negocio asociado a esta cuenta.');
+    }
+
+    const safeDto: UpdateTenantDto = {
+      name: dto.name,
+      address_line: dto.address_line,
+      city: dto.city,
+      state: dto.state,
+      country: 'Venezuela',
+      postal_code: dto.postal_code,
+      phone: dto.phone,
+      public_email: dto.public_email,
+    };
+
+    return this.update(currentUser.tenant_id, safeDto, currentUser);
   }
 
   private async getTenantLogosByTenantId(

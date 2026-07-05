@@ -40,6 +40,12 @@ export class Booking extends TenantBaseEntity {
   @Column({ type: 'varchar', length: 128, nullable: true })
   idempotency_key: string | null;
 
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  management_token_hash: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  management_token_expires_at: Date | null;
+
   @Index('IDX_bookings_employee_id')
   @Column({ type: 'uuid' })
   employee_id: string;

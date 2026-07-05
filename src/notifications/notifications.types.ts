@@ -30,6 +30,13 @@ export type BookingNotificationBusinessContext = {
   tenantId: string;
   tenantName: string;
   tenantSlug: string;
+  publicEmail: string | null;
+  phone: string | null;
+  addressLine: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  postalCode: string | null;
   settingsUpdatedAt: string;
   logoKey: string | null;
   branding: TenantBrandingSettings;

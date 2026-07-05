@@ -5,7 +5,10 @@ import { Employee } from '../employees/entities/employee.entity';
 import { Service } from '../services/entity/service.entity';
 import { Tenant } from '../tenant/entities/tenant.entity';
 import { BookingsController } from './bookings.controller';
-import { BookingsPublicController } from './bookings-public.controller';
+import {
+  BookingsPublicController,
+  PublicBookingManagementController,
+} from './bookings-public.controller';
 import { BookingsService } from './bookings.service';
 import { Booking } from './entities/booking.entity';
 import { BookingItem } from './entities/booking-item.entity';
@@ -31,7 +34,11 @@ import { NotificationsModule } from '../notifications/notifications.module';
     CaptchaModule,
     NotificationsModule,
   ],
-  controllers: [BookingsController, BookingsPublicController],
+  controllers: [
+    BookingsController,
+    BookingsPublicController,
+    PublicBookingManagementController,
+  ],
   providers: [BookingsService],
   exports: [BookingsService],
 })

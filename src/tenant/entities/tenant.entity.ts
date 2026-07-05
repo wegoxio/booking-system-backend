@@ -15,4 +15,25 @@ export class Tenant extends BaseEntity {
     default: true,
   })
   is_active: boolean;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  address_line: string | null;
+
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  city: string | null;
+
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  state: string | null;
+
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  country: string | null;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  postal_code: string | null;
+
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  phone: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  public_email: string | null;
 }

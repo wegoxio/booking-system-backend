@@ -93,18 +93,18 @@ function getSubject(
         : `Nueva cita agendada para ${customerName} en ${businessName}`;
     case 'BOOKING_REMINDER_DAY_BEFORE':
       return audience === 'CUSTOMER'
-        ? `Recordatorio: tu cita en ${businessName} es manana`
-        : `Recordatorio: manana atiendes a ${customerName} en ${businessName}`;
+        ? `Recordatorio: tu cita en ${businessName} es mañana`
+        : `Recordatorio: mañana atiendes a ${customerName} en ${businessName}`;
     case 'BOOKING_COMPLETED':
       return audience === 'CUSTOMER'
         ? `Tu cita en ${businessName} fue completada`
         : `Cita completada para ${customerName} en ${businessName}`;
     case 'BOOKING_CANCELLED':
       return audience === 'CUSTOMER'
-        ? `Actualizacion de tu cita en ${businessName}`
+        ? `Actualización de tu cita en ${businessName}`
         : `Cita cancelada para ${customerName} en ${businessName}`;
     default:
-      return `Actualizacion de booking en ${businessName}`;
+      return `Actualización de cita en ${businessName}`;
   }
 }
 
@@ -116,12 +116,12 @@ function getHeadline(
   switch (event) {
     case 'BOOKING_CREATED':
       return audience === 'CUSTOMER'
-        ? `Tu cita en ${businessName} ya quedo registrada`
-        : 'Se registro una nueva cita en la agenda';
+        ? `Tu cita en ${businessName} ya quedó registrada`
+        : 'Se registró una nueva cita en la agenda';
     case 'BOOKING_REMINDER_DAY_BEFORE':
       return audience === 'CUSTOMER'
-        ? `Tu cita en ${businessName} es manana`
-        : 'Manana tienes una cita agendada';
+        ? `Tu cita en ${businessName} es mañana`
+        : 'Mañana tienes una cita agendada';
     case 'BOOKING_COMPLETED':
       return audience === 'CUSTOMER'
         ? `Tu cita en ${businessName} fue completada`
@@ -131,7 +131,7 @@ function getHeadline(
         ? `Tu cita en ${businessName} fue actualizada`
         : 'La cita fue cancelada o marcada como no asistida';
     default:
-      return 'Actualizacion de booking';
+      return 'Actualización de cita';
   }
 }
 
@@ -145,19 +145,19 @@ function getIntro(
   }
 
   if (event === 'BOOKING_CREATED') {
-    return `Se agendo una nueva cita para ${booking.customerName}. Aqui tienes el resumen operativo del booking.`;
+    return `Se agendó una nueva cita para ${booking.customerName}. Aquí tienes el resumen operativo de la cita.`;
   }
 
   if (event === 'BOOKING_REMINDER_DAY_BEFORE' && audience === 'CUSTOMER') {
-    return `Hola ${booking.customerName}, te recordamos que manana tienes una cita programada. Te dejamos el resumen para que la tengas presente.`;
+    return `Hola ${booking.customerName}, te recordamos que mañana tienes una cita programada. Te dejamos el resumen para que la tengas presente.`;
   }
 
   if (event === 'BOOKING_REMINDER_DAY_BEFORE') {
-    return `Este es tu recordatorio operativo para la cita de manana con ${booking.customerName}.`;
+    return `Este es tu recordatorio operativo para la cita de mañana con ${booking.customerName}.`;
   }
 
   if (event === 'BOOKING_COMPLETED' && audience === 'CUSTOMER') {
-    return `Hola ${booking.customerName}, gracias por visitarnos. Esta confirmacion deja constancia de que tu servicio fue completado.`;
+    return `Hola ${booking.customerName}, gracias por visitarnos. Esta confirmación deja constancia de que tu servicio fue completado.`;
   }
 
   if (event === 'BOOKING_COMPLETED') {
@@ -194,6 +194,76 @@ function buildServicesMarkup(booking: BookingNotificationPayload): string {
     .join('');
 }
 
+function formatBusinessAddress(
+  business: BookingNotificationBusinessContext,
+): string | null {
+  const parts = [
+    business.addressLine,
+    business.city,
+    business.state,
+    business.country,
+    business.postalCode,
+  ]
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part));
+
+  return parts.length ? parts.join(', ') : null;
+}
+
+function buildGoogleMapsUrl(address: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+}
+
+function buildCustomerBusinessInfoMarkup(input: {
+  business: BookingNotificationBusinessContext;
+  primary: string;
+  secondary: string;
+  textPrimary: string;
+  textSecondary: string;
+  tertiary: string;
+}): string {
+  const { business, primary, secondary, textPrimary, textSecondary, tertiary } =
+    input;
+  const address = formatBusinessAddress(business);
+  const mapsUrl = address ? buildGoogleMapsUrl(address) : null;
+  const contactRows = [
+    business.phone
+      ? `<div style="margin-top: 8px; font-size: 13px; line-height: 1.6; color: ${escapeHtml(textSecondary)};"><strong style="color: ${escapeHtml(textPrimary)};">Teléfono:</strong> ${escapeHtml(business.phone)}</div>`
+      : '',
+    business.publicEmail
+      ? `<div style="margin-top: 8px; font-size: 13px; line-height: 1.6; color: ${escapeHtml(textSecondary)};"><strong style="color: ${escapeHtml(textPrimary)};">Correo:</strong> ${escapeHtml(business.publicEmail)}</div>`
+      : '',
+    address
+      ? `<div style="margin-top: 8px; font-size: 13px; line-height: 1.6; color: ${escapeHtml(textSecondary)};"><strong style="color: ${escapeHtml(textPrimary)};">Dirección:</strong> ${escapeHtml(address)}</div>`
+      : '',
+  ].join('');
+
+  if (!contactRows && !mapsUrl) {
+    return '';
+  }
+
+  return `
+            <tr>
+              <td class="email-section" style="padding: 14px 30px 0;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background: ${escapeHtml(withAlpha(secondary, 0.24))}; border: 1px solid ${escapeHtml(withAlpha(primary, 0.16))}; border-radius: 18px;">
+                  <tr>
+                    <td style="padding: 18px 20px;">
+                      <div style="font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: ${escapeHtml(tertiary)};">Información para tu visita</div>
+                      <div style="margin-top: 10px; font-size: 15px; font-weight: 800; color: ${escapeHtml(textPrimary)};">${escapeHtml(business.tenantName)}</div>
+                      ${contactRows}
+                      ${
+                        mapsUrl
+                          ? `<a href="${escapeHtml(mapsUrl)}" style="display: inline-block; margin-top: 14px; padding: 11px 16px; border-radius: 14px; background: #ffffff; border: 1px solid ${escapeHtml(withAlpha(primary, 0.28))}; color: ${escapeHtml(textPrimary)}; font-size: 13px; font-weight: 800; text-decoration: none;">Como llegar</a>`
+                          : ''
+                      }
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+  `;
+}
+
 export function buildBookingLifecycleEmail(input: {
   event: BookingNotificationEvent;
   audience: BookingNotificationAudience;
@@ -201,9 +271,17 @@ export function buildBookingLifecycleEmail(input: {
   booking: BookingNotificationPayload;
   appPublicUrl: string;
   assetBaseUrl?: string | null;
+  managementUrl?: string | null;
 }): { subject: string; html: string; text: string } {
-  const { event, audience, business, booking, appPublicUrl, assetBaseUrl } =
-    input;
+  const {
+    event,
+    audience,
+    business,
+    booking,
+    appPublicUrl,
+    assetBaseUrl,
+    managementUrl,
+  } = input;
   const subject = getSubject(
     event,
     audience,
@@ -240,6 +318,17 @@ export function buildBookingLifecycleEmail(input: {
   const textSecondary = business.theme.textSecondary || '#4b5563';
   const textTertiary = business.theme.textTertiary || '#6b7280';
   const statusLabel = booking.status.replace(/_/g, ' ');
+  const customerBusinessInfoMarkup =
+    audience === 'CUSTOMER'
+      ? buildCustomerBusinessInfoMarkup({
+          business,
+          primary,
+          secondary,
+          textPrimary,
+          textSecondary,
+          tertiary,
+        })
+      : '';
 
   const reasonMarkup = booking.cancellationReason
     ? `
@@ -262,6 +351,24 @@ export function buildBookingLifecycleEmail(input: {
       </tr>
     `
     : '';
+  const managementMarkup =
+    audience === 'CUSTOMER' && managementUrl
+      ? `
+            <tr>
+              <td class="email-section" style="padding: 16px 30px 0;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: separate; border-spacing: 0; background: ${escapeHtml(withAlpha(primary, 0.1))}; border: 1px solid ${escapeHtml(withAlpha(primary, 0.22))}; border-radius: 18px;">
+                  <tr>
+                    <td style="padding: 18px 20px;">
+                      <div style="font-size: 15px; font-weight: 800; color: ${escapeHtml(textPrimary)};">¿Necesitas cambiar la fecha?</div>
+                      <div style="margin-top: 7px; font-size: 13px; line-height: 1.7; color: ${escapeHtml(textSecondary)};">Puedes reprogramar esta cita desde un enlace seguro. El enlace es personal para esta reserva.</div>
+                      <a href="${escapeHtml(managementUrl)}" style="display: inline-block; margin-top: 14px; padding: 12px 18px; border-radius: 14px; background: ${escapeHtml(primary)}; color: #ffffff; font-size: 14px; font-weight: 800; text-decoration: none;">Reprogramar cita</a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+      `
+      : '';
 
   const html = `
 <!DOCTYPE html>
@@ -395,7 +502,7 @@ export function buildBookingLifecycleEmail(input: {
                         </tr>
                         <tr>
                           <td style="padding: 0 0 12px; width: 50%; vertical-align: top;">
-                            <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: ${escapeHtml(tertiary)};">Duracion total</div>
+                            <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: ${escapeHtml(tertiary)};">Duración total</div>
                             <div style="margin-top: 6px; font-size: 14px; line-height: 1.7; color: ${escapeHtml(textPrimary)};">${escapeHtml(formatDuration(booking.durationMinutes))}</div>
                           </td>
                           <td style="padding: 0 0 12px; width: 50%; vertical-align: top;">
@@ -437,6 +544,10 @@ export function buildBookingLifecycleEmail(input: {
               </td>
             </tr>
 
+            ${customerBusinessInfoMarkup}
+
+            ${managementMarkup}
+
             <tr>
               <td class="email-footer" style="padding: 24px 30px 28px; background: linear-gradient(180deg, ${escapeHtml(withAlpha(secondary, 0.2))} 0%, #ffffff 100%); border-top: 1px solid ${escapeHtml(withAlpha(primary, 0.12))};">
                 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" class="stack-mobile">
@@ -444,7 +555,7 @@ export function buildBookingLifecycleEmail(input: {
                     <td style="vertical-align: top;">
                       <div style="font-size: 16px; font-weight: 800; color: ${escapeHtml(textPrimary)};">${escapeHtml(business.tenantName)}</div>
                       <div style="margin-top: 6px; font-size: 12px; line-height: 1.7; color: ${escapeHtml(textSecondary)};">
-                        Todos los derechos reservados &copy; ${currentYear}. Este correo fue generado automaticamente por ${escapeHtml(business.branding.appName || business.tenantName)}.
+                        Todos los derechos reservados &copy; ${currentYear}. Este correo fue generado automáticamente por ${escapeHtml(business.branding.appName || business.tenantName)}.
                       </div>
                       <div style="margin-top: 8px; font-size: 12px; line-height: 1.7; color: ${escapeHtml(textTertiary)};">
                         Impulsado por Wegox para reservas, agenda y operaciones del negocio.
@@ -481,16 +592,30 @@ export function buildBookingLifecycleEmail(input: {
     `Inicio: ${startAtText}`,
     `Fin: ${endAtText}`,
     `Estado: ${statusLabel}`,
-    `Duracion: ${formatDuration(booking.durationMinutes)}`,
+    `Duración: ${formatDuration(booking.durationMinutes)}`,
     `Total: ${formatMoney(booking.totalPrice, booking.currency)}`,
     booking.cancellationReason ? `Motivo: ${booking.cancellationReason}` : '',
     booking.notes ? `Notas: ${booking.notes}` : '',
+    managementUrl ? `Reprogramar cita: ${managementUrl}` : '',
     '',
     'Servicios:',
     ...booking.services.map(
       (service) =>
         `- ${service.name} (${formatDuration(service.durationMinutes)}) - ${formatMoney(service.price, service.currency)}${service.instructions ? ` | Indicaciones: ${service.instructions}` : ''}`,
     ),
+    audience === 'CUSTOMER' ? '' : '',
+    audience === 'CUSTOMER' ? 'Información para tu visita:' : '',
+    audience === 'CUSTOMER' ? `Negocio: ${business.tenantName}` : '',
+    audience === 'CUSTOMER' && business.phone ? `Teléfono: ${business.phone}` : '',
+    audience === 'CUSTOMER' && business.publicEmail
+      ? `Correo: ${business.publicEmail}`
+      : '',
+    audience === 'CUSTOMER' && formatBusinessAddress(business)
+      ? `Dirección: ${formatBusinessAddress(business)}`
+      : '',
+    audience === 'CUSTOMER' && formatBusinessAddress(business)
+      ? `Como llegar: ${buildGoogleMapsUrl(formatBusinessAddress(business)!)}`
+      : '',
     '',
     `Negocio: ${business.tenantName}`,
     `Powered by Wegox`,

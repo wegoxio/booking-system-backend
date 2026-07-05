@@ -58,4 +58,22 @@ export class User extends BaseEntity {
 
   @Column({ type: 'timestamptz', nullable: true })
   tenant_dashboard_tour_completed_at: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  mfa_enabled_at: Date | null;
+
+  @Column({ type: 'text', nullable: true })
+  mfa_totp_secret_encrypted: string | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  mfa_recovery_code_hashes: string[] | null;
+
+  @Column({ type: 'text', nullable: true })
+  mfa_pending_secret_encrypted: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  mfa_pending_expires_at: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  mfa_last_used_at: Date | null;
 }

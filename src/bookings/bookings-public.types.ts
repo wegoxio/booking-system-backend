@@ -53,3 +53,7 @@ export type PublicBookingConfirmation = {
   employee: PublicBookingEmployee | null;
   items: PublicBookingItem[];
 };
+
+export type PublicBookingManagement = PublicBookingConfirmation & {
+  can_reschedule: boolean;
+};

@@ -10,6 +10,7 @@ import { User } from '../users/entities/user.entity';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AuditModule } from '../audit/audit.module';
 import { AuthSession } from './entities/auth-session.entity';
+import { AuthMfaChallenge } from './entities/auth-mfa-challenge.entity';
 import { AuthCookieService } from './auth-cookie.service';
 import { CaptchaModule } from '../captcha/captcha.module';
 import { UserAccessToken } from './entities/user-access-token.entity';
@@ -33,7 +34,12 @@ function toJwtExpiresIn(
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, AuthSession, UserAccessToken]),
+    TypeOrmModule.forFeature([
+      User,
+      AuthSession,
+      AuthMfaChallenge,
+      UserAccessToken,
+    ]),
     AuditModule,
     CaptchaModule,
     NotificationsModule,

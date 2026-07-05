@@ -64,7 +64,12 @@ export const envSchema = z
           .array(z.string().min(1))
           .min(1, 'CORS_ALLOWED_HEADERS requiere al menos 1 header'),
       )
-      .default(['Content-Type', 'Authorization', 'X-CSRF-Token']),
+      .default([
+        'Content-Type',
+        'Authorization',
+        'X-CSRF-Token',
+        'Idempotency-Key',
+      ]),
     CORS_ALLOWED_METHODS: z
       .preprocess(
         parseCsvToArray,
@@ -98,6 +103,9 @@ export const envSchema = z
     JWT_ACCESS_EXPIRES_IN: z.string().optional(),
     JWT_REFRESH_SECRET: z.string().min(10).optional(),
     JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
+    MFA_ENCRYPTION_KEY: z.string().optional(),
+    MFA_CHALLENGE_SECRET: z.string().min(10).optional(),
+    MFA_ISSUER: z.string().min(1).default('Bukky'),
     AUTH_REFRESH_COOKIE_NAME: z.string().min(1).default('wegox_refresh'),
     AUTH_REFRESH_COOKIE_PATH: z.string().min(1).default('/api/auth'),
     AUTH_REFRESH_COOKIE_DOMAIN: z.preprocess(
@@ -125,6 +133,10 @@ export const envSchema = z
     TURNSTILE_TIMEOUT_MS: z.coerce.number().default(5000),
     TURNSTILE_LOGIN_ACTION: z.string().min(1).default('login'),
     TURNSTILE_BOOKING_ACTION: z.string().min(1).default('booking_create'),
+    TURNSTILE_BOOKING_RESCHEDULE_ACTION: z
+      .string()
+      .min(1)
+      .default('booking_reschedule'),
 
     // Auth security (login/session)
     AUTH_MAX_FAILED_ATTEMPTS: z.coerce.number().default(5),
