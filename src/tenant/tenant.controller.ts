@@ -16,6 +16,7 @@ import { TenantService } from './tenant.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 type CurrentJwtUser = {
   sub: string;
@@ -23,6 +24,8 @@ type CurrentJwtUser = {
   tenant_id: string | null;
 };
 
+@ApiTags('Tenants')
+@ApiBearerAuth('access-token')
 @Controller('tenant')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TenantController {

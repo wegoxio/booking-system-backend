@@ -606,7 +606,9 @@ export function buildBookingLifecycleEmail(input: {
     audience === 'CUSTOMER' ? '' : '',
     audience === 'CUSTOMER' ? 'Información para tu visita:' : '',
     audience === 'CUSTOMER' ? `Negocio: ${business.tenantName}` : '',
-    audience === 'CUSTOMER' && business.phone ? `Teléfono: ${business.phone}` : '',
+    audience === 'CUSTOMER' && business.phone
+      ? `Teléfono: ${business.phone}`
+      : '',
     audience === 'CUSTOMER' && business.publicEmail
       ? `Correo: ${business.publicEmail}`
       : '',

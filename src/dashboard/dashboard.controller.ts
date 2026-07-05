@@ -6,7 +6,10 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { DashboardOverviewQueryDto } from './dto/dashboard-overview-query.dto';
 import { DashboardService } from './dashboard.service';
 import type { CurrentJwtUser } from '../auth/types';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Dashboard')
+@ApiBearerAuth('access-token')
 @Controller('dashboard')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('SUPER_ADMIN', 'TENANT_ADMIN')

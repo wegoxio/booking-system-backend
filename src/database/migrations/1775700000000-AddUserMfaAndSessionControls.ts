@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddUserMfaAndSessionControls1775700000000
-  implements MigrationInterface
-{
+export class AddUserMfaAndSessionControls1775700000000 implements MigrationInterface {
   name = 'AddUserMfaAndSessionControls1775700000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

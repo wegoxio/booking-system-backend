@@ -22,6 +22,7 @@ import { EmployeesService } from './employees.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 
 type CurrentJwtUser = {
   sub: string;
@@ -43,6 +44,8 @@ type UploadedAssetFile = {
   originalname?: string;
 };
 
+@ApiTags('Employees')
+@ApiBearerAuth('access-token')
 @Controller('employees')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('TENANT_ADMIN')
@@ -80,6 +83,20 @@ export class EmployeesController {
   }
 
   @Post(':id/avatar')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Avatar del profesional en PNG, JPG o WEBP.',
+        },
+      },
+    },
+  })
   @UseInterceptors(
     FileInterceptor('file', {
       limits: {

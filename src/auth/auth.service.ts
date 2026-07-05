@@ -611,7 +611,9 @@ export class AuthService {
     }
 
     if (!user.mfa_enabled_at || !user.mfa_totp_secret_encrypted) {
-      throw new UnauthorizedException('La verificación en dos pasos no está activa.');
+      throw new UnauthorizedException(
+        'La verificación en dos pasos no está activa.',
+      );
     }
 
     try {
@@ -657,7 +659,9 @@ export class AuthService {
   }
 
   async getMfaStatus(currentUser: CurrentJwtUser) {
-    const user = await this.usersRepo.findOne({ where: { id: currentUser.id } });
+    const user = await this.usersRepo.findOne({
+      where: { id: currentUser.id },
+    });
     if (!user) throw new UnauthorizedException('Usuario inválido.');
 
     return {
@@ -674,13 +678,17 @@ export class AuthService {
   }
 
   async startMfaSetup(currentUser: CurrentJwtUser) {
-    const user = await this.usersRepo.findOne({ where: { id: currentUser.id } });
+    const user = await this.usersRepo.findOne({
+      where: { id: currentUser.id },
+    });
     if (!user || !user.is_active) {
       throw new UnauthorizedException('Usuario inválido.');
     }
 
     if (user.mfa_enabled_at) {
-      throw new BadRequestException('La verificación en dos pasos ya está activa.');
+      throw new BadRequestException(
+        'La verificación en dos pasos ya está activa.',
+      );
     }
 
     const secret = this.generateTotpSecret();
@@ -711,13 +719,17 @@ export class AuthService {
     context?: AuthRequestContext,
   ) {
     const normalizedContext = this.normalizeContext(context);
-    const user = await this.usersRepo.findOne({ where: { id: currentUser.id } });
+    const user = await this.usersRepo.findOne({
+      where: { id: currentUser.id },
+    });
     if (!user || !user.is_active) {
       throw new UnauthorizedException('Usuario inválido.');
     }
 
     if (user.mfa_enabled_at) {
-      throw new BadRequestException('La verificación en dos pasos ya está activa.');
+      throw new BadRequestException(
+        'La verificación en dos pasos ya está activa.',
+      );
     }
 
     if (
@@ -725,7 +737,9 @@ export class AuthService {
       !user.mfa_pending_expires_at ||
       user.mfa_pending_expires_at.getTime() <= Date.now()
     ) {
-      throw new BadRequestException('El código de configuración expiró. Genera un nuevo QR.');
+      throw new BadRequestException(
+        'El código de configuración expiró. Genera un nuevo QR.',
+      );
     }
 
     const normalizedCode = this.normalizeTotpCode(code);
@@ -741,7 +755,9 @@ export class AuthService {
         ip: normalizedContext.ip,
         user_agent: normalizedContext.user_agent,
       });
-      throw new UnauthorizedException('El código de verificación no es válido.');
+      throw new UnauthorizedException(
+        'El código de verificación no es válido.',
+      );
     }
 
     const recoveryCodes = this.generateRecoveryCodes();
@@ -780,13 +796,17 @@ export class AuthService {
     context?: AuthRequestContext,
   ) {
     const normalizedContext = this.normalizeContext(context);
-    const user = await this.usersRepo.findOne({ where: { id: currentUser.id } });
+    const user = await this.usersRepo.findOne({
+      where: { id: currentUser.id },
+    });
     if (!user || !user.is_active) {
       throw new UnauthorizedException('Usuario inválido.');
     }
 
     if (!user.mfa_enabled_at || !user.mfa_totp_secret_encrypted) {
-      throw new BadRequestException('La verificación en dos pasos no está activa.');
+      throw new BadRequestException(
+        'La verificación en dos pasos no está activa.',
+      );
     }
 
     await this.verifyMfaCredentialOrThrow(user, code, recoveryCode, {
@@ -830,13 +850,17 @@ export class AuthService {
     context?: AuthRequestContext,
   ) {
     const normalizedContext = this.normalizeContext(context);
-    const user = await this.usersRepo.findOne({ where: { id: currentUser.id } });
+    const user = await this.usersRepo.findOne({
+      where: { id: currentUser.id },
+    });
     if (!user || !user.is_active) {
       throw new UnauthorizedException('Usuario inválido.');
     }
 
     if (!user.mfa_enabled_at || !user.mfa_totp_secret_encrypted) {
-      throw new BadRequestException('Activa primero la verificación en dos pasos.');
+      throw new BadRequestException(
+        'Activa primero la verificación en dos pasos.',
+      );
     }
 
     await this.verifyMfaCredentialOrThrow(user, code, recoveryCode, {
@@ -900,12 +924,18 @@ export class AuthService {
       where: { id: sessionId, user_id: currentUser.id },
     });
 
-    if (!session || session.revoked_at || session.expires_at.getTime() <= Date.now()) {
+    if (
+      !session ||
+      session.revoked_at ||
+      session.expires_at.getTime() <= Date.now()
+    ) {
       throw new NotFoundException('La sesión no existe o ya fue cerrada.');
     }
 
     if (session.id === currentUser.session_id) {
-      throw new BadRequestException('Para cerrar esta sesión usa el botón Cerrar sesión.');
+      throw new BadRequestException(
+        'Para cerrar esta sesión usa el botón Cerrar sesión.',
+      );
     }
 
     session.revoked_at = new Date();
@@ -1062,17 +1092,15 @@ export class AuthService {
         secret: this.mfaChallengeSecret,
       });
 
-      if (
-        !payload?.sub ||
-        payload.purpose !== 'mfa_login' ||
-        !payload.jti
-      ) {
+      if (!payload?.sub || payload.purpose !== 'mfa_login' || !payload.jti) {
         throw new UnauthorizedException('Verificación expirada.');
       }
 
       return payload;
     } catch {
-      throw new UnauthorizedException('Verificación expirada. Inicia sesión nuevamente.');
+      throw new UnauthorizedException(
+        'Verificación expirada. Inicia sesión nuevamente.',
+      );
     }
   }
 
@@ -1087,7 +1115,9 @@ export class AuthService {
     },
   ): Promise<void> {
     if (!user.mfa_totp_secret_encrypted) {
-      throw new UnauthorizedException('La verificación en dos pasos no está activa.');
+      throw new UnauthorizedException(
+        'La verificación en dos pasos no está activa.',
+      );
     }
 
     const normalizedCode = code ? this.normalizeTotpCode(code) : null;
@@ -1156,7 +1186,9 @@ export class AuthService {
 
   private generateRecoveryCodes(): string[] {
     return Array.from({ length: 10 }, () => {
-      const raw = randomBytes(9).toString('base64url').replace(/[^A-Z0-9]/gi, '');
+      const raw = randomBytes(9)
+        .toString('base64url')
+        .replace(/[^A-Z0-9]/gi, '');
       return raw
         .toUpperCase()
         .slice(0, 12)
@@ -1273,9 +1305,7 @@ export class AuthService {
       this.configService.get<string>('JWT_SECRET') ??
       this.configService.get<string>('JWT_REFRESH_SECRET') ??
       'local-development-only';
-    return createHash('sha256')
-      .update(`bukky-mfa:${fallback}`)
-      .digest();
+    return createHash('sha256').update(`bukky-mfa:${fallback}`).digest();
   }
 
   private async revokeOtherActiveSessions(

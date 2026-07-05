@@ -7,7 +7,10 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ReportsOverviewQueryDto } from './dto/reports-overview-query.dto';
 import { ReportsService } from './reports.service';
+import { ApiBearerAuth, ApiProduces, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Reports')
+@ApiBearerAuth('access-token')
 @Controller('reports')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('SUPER_ADMIN', 'TENANT_ADMIN')
@@ -23,6 +26,9 @@ export class ReportsController {
   }
 
   @Get('export')
+  @ApiProduces(
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  )
   async export(
     @Query() query: ReportsOverviewQueryDto,
     @CurrentUser() currentUser: CurrentJwtUser,

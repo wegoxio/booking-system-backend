@@ -6,7 +6,10 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { AuditService } from './audit.service';
 import { ListAuditLogsQueryDto } from './dto/list-audit-logs-query.dto';
 import type { CurrentJwtUser } from '../auth/types';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Audit logs')
+@ApiBearerAuth('access-token')
 @Controller('audit-logs')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('SUPER_ADMIN', 'TENANT_ADMIN')

@@ -26,6 +26,7 @@ import {
   ALLOWED_IMAGE_MIME_TYPES,
   TenantSettingsAssetType,
 } from './tenant-settings.constants';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 
 const MAX_ASSET_SIZE_BYTES = 2 * 1024 * 1024;
 const imageAssetUploadOptions = {
@@ -63,6 +64,8 @@ type UploadedAssetFile = {
   originalname?: string;
 };
 
+@ApiTags('Tenant settings')
+@ApiBearerAuth('access-token')
 @Controller('tenant-settings')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TenantSettingsController {
@@ -85,6 +88,20 @@ export class TenantSettingsController {
 
   @Post('platform/me/assets/:assetType')
   @Roles('SUPER_ADMIN')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Logo o favicon de plataforma en PNG, JPG, WEBP o ICO.',
+        },
+      },
+    },
+  })
   @UseInterceptors(FileInterceptor('file', imageAssetUploadOptions))
   uploadPlatformAsset(
     @Param('assetType', new ParseEnumPipe(TenantSettingsAssetType))
@@ -124,6 +141,20 @@ export class TenantSettingsController {
 
   @Post('me/assets/:assetType')
   @Roles('TENANT_ADMIN')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Logo o favicon del negocio en PNG, JPG, WEBP o ICO.',
+        },
+      },
+    },
+  })
   @UseInterceptors(FileInterceptor('file', imageAssetUploadOptions))
   uploadMineAsset(
     @Param('assetType', new ParseEnumPipe(TenantSettingsAssetType))
@@ -168,6 +199,21 @@ export class TenantSettingsController {
 
   @Post(':tenantId/assets/:assetType')
   @Roles('SUPER_ADMIN')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description:
+            'Logo o favicon de un negocio administrado por SUPER_ADMIN.',
+        },
+      },
+    },
+  })
   @UseInterceptors(FileInterceptor('file', imageAssetUploadOptions))
   uploadAssetByTenantId(
     @Param('tenantId', new ParseUUIDPipe()) tenantId: string,

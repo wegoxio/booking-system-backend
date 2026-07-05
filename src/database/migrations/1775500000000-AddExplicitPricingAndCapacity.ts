@@ -1,14 +1,18 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddExplicitPricingAndCapacity1775500000000
-  implements MigrationInterface
-{
+export class AddExplicitPricingAndCapacity1775500000000 implements MigrationInterface {
   name = 'AddExplicitPricingAndCapacity1775500000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "services" ADD "min_party_size" integer`);
-    await queryRunner.query(`ALTER TABLE "services" ADD "max_party_size" integer`);
-    await queryRunner.query(`ALTER TABLE "services" ADD "slot_capacity" integer`);
+    await queryRunner.query(
+      `ALTER TABLE "services" ADD "min_party_size" integer`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "services" ADD "max_party_size" integer`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "services" ADD "slot_capacity" integer`,
+    );
     await queryRunner.query(
       `ALTER TABLE "services" ADD "pricing_model" character varying(16)`,
     );
@@ -101,18 +105,44 @@ export class AddExplicitPricingAndCapacity1775500000000
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX "public"."IDX_bookings_tenant_employee_status_session"`);
-    await queryRunner.query(`ALTER TABLE "booking_items" DROP CONSTRAINT "CHK_booking_items_quantity"`);
-    await queryRunner.query(`ALTER TABLE "booking_items" DROP CONSTRAINT "CHK_booking_items_pricing_model"`);
-    await queryRunner.query(`ALTER TABLE "booking_items" DROP COLUMN "line_total_snapshot"`);
-    await queryRunner.query(`ALTER TABLE "booking_items" DROP COLUMN "quantity_snapshot"`);
-    await queryRunner.query(`ALTER TABLE "booking_items" DROP COLUMN "unit_price_snapshot"`);
-    await queryRunner.query(`ALTER TABLE "booking_items" DROP COLUMN "pricing_model_snapshot"`);
-    await queryRunner.query(`ALTER TABLE "services" DROP CONSTRAINT "CHK_services_pricing_model"`);
-    await queryRunner.query(`ALTER TABLE "services" DROP CONSTRAINT "CHK_services_explicit_capacity"`);
-    await queryRunner.query(`ALTER TABLE "services" DROP COLUMN "pricing_model"`);
-    await queryRunner.query(`ALTER TABLE "services" DROP COLUMN "slot_capacity"`);
-    await queryRunner.query(`ALTER TABLE "services" DROP COLUMN "max_party_size"`);
-    await queryRunner.query(`ALTER TABLE "services" DROP COLUMN "min_party_size"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_bookings_tenant_employee_status_session"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking_items" DROP CONSTRAINT "CHK_booking_items_quantity"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking_items" DROP CONSTRAINT "CHK_booking_items_pricing_model"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking_items" DROP COLUMN "line_total_snapshot"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking_items" DROP COLUMN "quantity_snapshot"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking_items" DROP COLUMN "unit_price_snapshot"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking_items" DROP COLUMN "pricing_model_snapshot"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "services" DROP CONSTRAINT "CHK_services_pricing_model"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "services" DROP CONSTRAINT "CHK_services_explicit_capacity"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "services" DROP COLUMN "pricing_model"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "services" DROP COLUMN "slot_capacity"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "services" DROP COLUMN "max_party_size"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "services" DROP COLUMN "min_party_size"`,
+    );
   }
 }
